@@ -316,8 +316,12 @@ textarea.note:focus{outline:none;border-color:var(--green);background:#fff}
     <div class="view" id="v-tasks">
       <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
         <div style="padding:16px;background:#fff;border-bottom:1px solid var(--g200);flex-shrink:0">
-          <div style="font-size:15px;font-weight:700;letter-spacing:-.02em;margin-bottom:2px">Task & Reminder</div>
-          <div style="font-size:12px;color:var(--g600)">Gestisci attività assegnate e scadenze</div>
+          <div style="font-size:15px;font-weight:700;letter-spacing:-.02em;margin-bottom:8px">Task & Reminder</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:12px">
+            <select id="filter-status" onchange="applyFilters()" style="border:1px solid var(--g200);border-radius:var(--rsm);padding:6px 9px;background:var(--g50);font-family:inherit;font-size:12px"><option value="">Tutti</option><option value="false">Non completati</option><option value="true">Completati</option></select>
+            <select id="filter-priority" onchange="applyFilters()" style="border:1px solid var(--g200);border-radius:var(--rsm);padding:6px 9px;background:var(--g50);font-family:inherit;font-size:12px"><option value="">Priorità: Tutte</option><option value="alta">Alta</option><option value="media">Media</option><option value="bassa">Bassa</option></select>
+            <select id="filter-type" onchange="applyFilters()" style="border:1px solid var(--g200);border-radius:var(--rsm);padding:6px 9px;background:var(--g50);font-family:inherit;font-size:12px"><option value="">Tipo: Tutti</option><option value="task">Task</option><option value="chiamata">Chiamata</option><option value="email">Email</option><option value="meeting">Meeting</option></select>
+          </div>
         </div>
         <div style="flex:1;overflow-y:auto;padding:16px">
           <div id="tasks-list" style="display:flex;flex-direction:column;gap:10px"><div style="color:var(--g400);font-size:13px;text-align:center;padding:40px 0">Caricamento task...</div></div>
@@ -409,6 +413,30 @@ textarea.note:focus{outline:none;border-color:var(--green);background:#fff}
   </div>
 </div>
 
+<div class="modal-overlay" id="task-modal" onclick="if(event.target===this)closeTaskModal()">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">Modifica Task</div>
+      <button class="btn btn-xs" onclick="closeTaskModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="task-modal-id"/>
+      <div class="field"><label>Titolo</label><input type="text" id="task-modal-title" placeholder="Titolo task"/></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="field"><label>Tipo</label><select id="task-modal-type"><option value="task">Task</option><option value="chiamata">Chiamata</option><option value="email">Email</option><option value="meeting">Meeting</option></select></div>
+        <div class="field"><label>Priorità</label><select id="task-modal-priority"><option value="bassa">Bassa</option><option value="media">Media</option><option value="alta">Alta</option></select></div>
+      </div>
+      <div class="field"><label>Scadenza</label><input type="date" id="task-modal-due"/></div>
+      <div class="field"><label><input type="checkbox" id="task-modal-urgent"/> Urgente</label></div>
+      <div class="field"><label>Assegna a</label><select id="task-modal-assignee"><option value="">Non assegnato</option><option id="me-opt" value="">Me</option></select></div>
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button class="btn btn-green" style="flex:1;justify-content:center" onclick="saveTaskChanges()">Salva</button>
+        <button class="btn" style="flex:1;justify-content:center" onclick="closeTaskModal()">Annulla</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast-el"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -452,10 +480,12 @@ sb.auth.onAuthStateChange(async(event,session)=>{
   }
 });
 
-async function loadTasks(){try{const{tasks}=await api('/api/tasks');renderTasksList(tasks)}catch(e){toast('Errore caricamento task: '+e.message)}}
+async function loadTasks(){try{const{tasks}=await api('/api/tasks');if(!window.allTasks)window.allTasks=tasks;renderTasksList(tasks)}catch(e){toast('Errore caricamento task: '+e.message)}}
 
-function renderTasksList(tasks){const list=document.getElementById('tasks-list');if(!tasks||tasks.length===0){list.innerHTML='<div style="color:var(--g400);font-size:13px;text-align:center;padding:40px 0">Nessun task. Crea uno nuovo o registra una nota con AI.</div>';return}list.innerHTML=tasks.map(t=>`<div style="background:#fff;border:1px solid var(--g200);border-radius:var(--r);padding:12px;display:flex;gap:12px;align-items:flex-start">
-<div style="width:18px;height:18px;border-radius:4px;border:1.5px solid ${t.completed?'var(--green)':'var(--g200)'};background:${t.completed?'var(--green)':'transparent'};flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;margin-top:1px" onclick="toggleTask('${t.id}',${!t.completed})">${t.completed?'<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="#fff" stroke-width="1.5"/></svg>':''}</div>
+function applyFilters(){if(!window.allTasks)return;const status=document.getElementById('filter-status').value;const priority=document.getElementById('filter-priority').value;const type=document.getElementById('filter-type').value;let filtered=window.allTasks;if(status!==''){filtered=filtered.filter(t=>String(t.completed)===status)}if(priority){filtered=filtered.filter(t=>t.priority===priority)}if(type){filtered=filtered.filter(t=>t.type===type)}renderTasksList(filtered)}
+
+function renderTasksList(tasks){const list=document.getElementById('tasks-list');if(!tasks||tasks.length===0){list.innerHTML='<div style="color:var(--g400);font-size:13px;text-align:center;padding:40px 0">Nessun task. Crea uno nuovo o registra una nota con AI.</div>';return}list.innerHTML=tasks.map(t=>`<div style="background:#fff;border:1px solid var(--g200);border-radius:var(--r);padding:12px;display:flex;gap:12px;align-items:flex-start" onclick="expandTask(event,'${t.id}')">
+<div style="width:18px;height:18px;border-radius:4px;border:1.5px solid ${t.completed?'var(--green)':'var(--g200)'};background:${t.completed?'var(--green)':'transparent'};flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;margin-top:1px" onclick="event.stopPropagation();toggleTask('${t.id}',${!t.completed})">${t.completed?'<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="#fff" stroke-width="1.5"/></svg>':''}</div>
 <div style="flex:1">
 <div style="font-size:13px;color:${t.completed?'var(--g400)':'var(--g900)'};text-decoration:${t.completed?'line-through':''};font-weight:500">${t.title}</div>
 <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;font-size:11px">
@@ -463,11 +493,18 @@ ${t.type?`<span style="background:var(--blue-l);color:var(--blue-d);padding:2px 
 ${t.priority?`<span style="background:${t.priority==='alta'?'var(--coral-l)':t.priority==='media'?'var(--amber-l)':'var(--green-l)'};color:${t.priority==='alta'?'var(--coral-d)':t.priority==='media'?'var(--amber-d)':'var(--green-d)'};padding:2px 7px;border-radius:4px;font-weight:600">${t.priority}</span>`:''}
 ${t.due_date?`<span style="color:var(--g400)">${new Date(t.due_date).toLocaleDateString('it-IT',{day:'numeric',month:'short'})}</span>`:''}
 ${t.urgent?'<span style="background:var(--coral-l);color:var(--coral-d);padding:2px 7px;border-radius:4px;font-weight:700">⚡ Urgente</span>':''}
-${t.contact?`<span style="color:var(--g600);padding:2px 0">→ ${t.contact.name}</span>`:''}
 </div>
+${t.assigned_to?`<div style="font-size:10px;color:var(--g600);margin-top:4px">Assegnato a: ${t.assigned_to.full_name}</div>`:'<div style="font-size:10px;color:var(--g400);margin-top:4px">Non assegnato</div>'}
+${t.contact?`<div style="font-size:10px;color:var(--g600)">→ ${t.contact.name}</div>`:''}
 </div>
-<button class="btn btn-xs" style="color:var(--g400)" onclick="deleteTask('${t.id}')">×</button>
+<button class="btn btn-xs" style="color:var(--g400)" onclick="event.stopPropagation();deleteTask('${t.id}')">×</button>
 </div>`).join('')}
+
+function expandTask(event,taskId){const task=window.allTasks.find(t=>t.id===taskId);if(!task)return;const modal=document.getElementById('task-modal');document.getElementById('task-modal-id').value=taskId;document.getElementById('task-modal-title').value=task.title;document.getElementById('task-modal-type').value=task.type||'task';document.getElementById('task-modal-priority').value=task.priority||'media';document.getElementById('task-modal-due').value=task.due_date?task.due_date.split('T')[0]:'';document.getElementById('task-modal-urgent').checked=task.urgent||false;const sel=document.getElementById('task-modal-assignee');sel.innerHTML=`<option value="">Non assegnato</option><option value="${me.id}">Me (${me.full_name})</option>${(teamList||[]).map(m=>`<option value="${m.id}" ${task.assigned_to?.id===m.id?'selected':''}>${m.full_name}</option>`).join('')}`;if(task.assigned_to)sel.value=task.assigned_to.id;modal.classList.add('on')}
+
+function closeTaskModal(){document.getElementById('task-modal').classList.remove('on')}
+
+async function saveTaskChanges(){const id=document.getElementById('task-modal-id').value;const updates={title:document.getElementById('task-modal-title').value,type:document.getElementById('task-modal-type').value,priority:document.getElementById('task-modal-priority').value,due_date:document.getElementById('task-modal-due').value||null,urgent:document.getElementById('task-modal-urgent').checked,assigned_to_id:document.getElementById('task-modal-assignee').value||null};try{await api(`/api/tasks/${id}`,{method:'PATCH',body:updates});await loadTasks();closeTaskModal();toast('Task aggiornato!')}catch(e){toast(e.message)}}
 
 async function addNewTask(){const input=document.getElementById('new-task-input'),title=input.value.trim();if(!title)return toast('Scrivi il titolo del task');try{await api('/api/tasks',{method:'POST',body:{title,type:'task',priority:'media'}});input.value='';await loadTasks();toast('Task aggiunto!')}catch(e){toast(e.message)}}
 
