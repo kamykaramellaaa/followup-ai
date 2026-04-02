@@ -26,8 +26,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api/ai', require('./routes/ai'));
 app.use('/api/transcribe', require('./routes/transcribe'));
 app.use('/api/contacts', require('./routes/contacts'));
+app.use('/api/tasks', require('./routes/tasks'));
+app.use('/api/projects', require('./routes/projects-new'));
 app.use('/api/team', require('./routes/team'));
-app.use('/api/projects', require('./routes/projects'));
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
