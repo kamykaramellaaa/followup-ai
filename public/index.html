@@ -40,11 +40,11 @@ html,body{height:100%;overflow:hidden}
 body{font-family:'Inter',-apple-system,'Helvetica Neue',sans-serif;background:var(--g50);color:var(--g900);-webkit-font-smoothing:antialiased;font-size:14px;line-height:1.5}
 
 /* ── AUTH ── */
-#auth{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;background:var(--g50)}
-.auth-card{background:#fff;border-radius:16px;border:1px solid var(--g200);padding:36px;width:100%;max-width:380px;box-shadow:0 4px 24px rgba(0,0,0,.06)}
-.auth-logo{display:flex;align-items:center;gap:10px;margin-bottom:28px}
-.auth-mark{width:32px;height:32px;background:var(--green);border-radius:9px;display:flex;align-items:center;justify-content:center}
-.auth-title{font-size:18px;font-weight:700;letter-spacing:-.04em;color:var(--g900)}
+#auth{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;background:var(--g900)}
+.auth-card{background:#fff;border-radius:20px;padding:40px;width:100%;max-width:380px;box-shadow:0 24px 64px rgba(0,0,0,.3)}
+.auth-logo{display:flex;align-items:center;gap:12px;margin-bottom:32px}
+.auth-mark{width:36px;height:36px;background:var(--green);border-radius:10px;display:flex;align-items:center;justify-content:center}
+.auth-title{font-size:22px;font-weight:700;letter-spacing:-.05em;color:var(--g900)}
 .field{margin-bottom:14px}
 .field label{display:block;font-size:11px;font-weight:600;color:var(--g600);margin-bottom:5px;letter-spacing:.03em}
 .field input,.field select,.field textarea{width:100%;border:1.5px solid var(--g200);border-radius:var(--r);padding:9px 12px;font-size:13px;background:#fff;color:var(--g900);font-family:inherit;transition:border-color .15s,box-shadow .15s}
@@ -58,8 +58,10 @@ body{font-family:'Inter',-apple-system,'Helvetica Neue',sans-serif;background:va
 .btn-full{width:100%;justify-content:center}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .auth-err{background:var(--red-l);color:var(--red-d);border-radius:var(--rsm);padding:10px 13px;font-size:13px;margin-bottom:14px;display:none;border:1px solid #FECACA}
-.auth-toggle{text-align:center;font-size:13px;color:var(--g600);margin-top:14px}
+.auth-toggle{text-align:center;font-size:13px;color:var(--g400);margin-top:16px}
 .auth-toggle a{color:var(--green);cursor:pointer;font-weight:600}
+.auth-divider{display:flex;align-items:center;gap:10px;margin:18px 0;color:var(--g400);font-size:12px}
+.auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--g200)}
 
 /* ── APP SHELL ── */
 #app{display:none;height:100vh;height:100dvh;flex-direction:column}
@@ -266,7 +268,10 @@ textarea.note:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px 
   <div class="auth-card">
     <div class="auth-logo">
       <div class="auth-mark"><svg viewBox="0 0 18 18" fill="none"><path d="M3 9C3 5.7 5.7 3 9 3s6 2.7 6 6-2.7 6-6 6" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/><circle cx="9" cy="9" r="2" fill="#fff"/></svg></div>
-      <span class="auth-title">FollowUp AI</span>
+      <div>
+        <div class="auth-title">FollowUp AI</div>
+        <div style="font-size:12px;color:var(--g400);margin-top:1px;font-weight:400">Confluencia · CRM interno</div>
+      </div>
     </div>
     <div class="auth-err" id="auth-err"></div>
     <div id="frm-l">
