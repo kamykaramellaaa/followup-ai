@@ -15,7 +15,7 @@ export const useApp = () => useContext(AppContext)
 
 function Toast({ msg, type, onDone }) {
   useEffect(() => {
-    const t = setTimeout(onDone, 3500)
+    const t = setTimeout(onDone, 8000)
     return () => clearTimeout(t)
   }, [])
   return (
@@ -46,7 +46,8 @@ export default function App() {
       setToast({ msg: 'Outlook connesso con successo!', type: 'success' })
       window.history.replaceState({}, '', window.location.pathname)
     } else if (ol === 'error') {
-      setToast({ msg: 'Errore connessione Outlook. Riprova.', type: 'error' })
+      const msg = params.get('msg')
+      setToast({ msg: msg ? `Outlook: ${decodeURIComponent(msg)}` : 'Errore connessione Outlook. Riprova.', type: 'error' })
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [])
