@@ -161,6 +161,52 @@ router.post('/save-voice', requireAuth, async (req, res) => {
   }
 });
 
+// Parse rapido di un task in linguaggio naturale
+router.post('/parse-task', requireAuth, async (req, res) => {
+  const { text } = req.body;
+  if (!text || text.trim().length < 2) return res.status(400).json({ error: 'Testo troppo corto' });
+
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+
+  try {
+    const message = await claude.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 300,
+      messages: [{
+        role: 'user',
+        content: `Sei un CRM italiano. Analizza il testo e restituisci SOLO JSON valido, nessun testo extra.
+Data oggi: ${todayStr} (${['domenica','lunedì','martedì','mercoledì','giovedì','venerdì','sabato'][today.getDay()]})
+
+Testo: "${text}"
+
+JSON richiesto:
+{
+  "title": "titolo pulito e conciso del task",
+  "type": "task | chiamata | email | meeting",
+  "priority": "bassa | media | alta",
+  "due_date": "YYYY-MM-DD oppure null",
+  "urgent": false,
+  "assignee_hint": "nome della persona da assegnare se menzionata, altrimenti null"
+}
+
+Regole:
+- due_date: calcola dalla data oggi se ci sono riferimenti temporali (domani, lunedì, ecc.)
+- type: se parla di telefonare/chiamare → chiamata, mandare email/scrivere → email, riunione/incontro → meeting
+- priority: urgente/subito/importante → alta, di default → media
+- assignee_hint: solo nomi propri di persone, non aziende`
+      }]
+    });
+
+    const raw = message.content?.[0]?.text || '';
+    const clean = raw.replace(/```json|```/g, '').trim();
+    res.json({ success: true, parsed: JSON.parse(clean) });
+  } catch (e) {
+    console.error('Errore parse-task:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.post('/suggest-followup', requireAuth, async (req, res) => {
   const { contact_name, company, stage, last_interaction, open_tasks } = req.body;
 

@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { api } from '../../lib/api'
+import { useApp } from '../../App'
 import EmailDraftModal from '../ai/EmailDraftModal'
 import TaskEditModal from './TaskEditModal'
 import {
@@ -105,7 +106,13 @@ function SortableTask({ task, today, onToggle, onDelete, onDraft, onSync, onEdit
   )
 }
 
+const TYPE_COLORS = { chiamata: 'bg-blue-100 text-blue-700', email: 'bg-brand-100 text-brand-700', meeting: 'bg-purple-100 text-purple-700', task: 'bg-warm-100 text-warm-600' }
+const PRI_COLORS  = { alta: 'bg-red-100 text-red-600', media: 'bg-amber-100 text-amber-700', bassa: 'bg-warm-100 text-warm-500' }
+const TYPES = ['task','chiamata','email','meeting']
+const PRIS  = ['bassa','media','alta']
+
 export default function Tasks() {
+  const { profile } = useApp()
   const [tasks, setTasks] = useState([])
   const [loading, setLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState('')
@@ -114,6 +121,10 @@ export default function Tasks() {
   const [newTitle, setNewTitle] = useState('')
   const [draftTask, setDraftTask] = useState(null)
   const [editTask, setEditTask] = useState(null)
+  const [parsing, setParsing] = useState(false)
+  const [preview, setPreview] = useState(null) // { title, type, priority, due_date, urgent, assignee_hint }
+  const [members, setMembers] = useState([])
+  const inputRef = useRef(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -129,6 +140,12 @@ export default function Tasks() {
 
   useEffect(() => { load() }, [])
 
+  useEffect(() => {
+    if (profile?.role === 'admin' || profile?.role === 'manager') {
+      api('/api/team/members').then(d => setMembers(d.members || [])).catch(() => {})
+    }
+  }, [profile])
+
   const filtered = tasks.filter(t => {
     if (filterStatus && String(t.completed) !== filterStatus) return false
     if (filterPri && t.priority !== filterPri) return false
@@ -141,12 +158,44 @@ export default function Tasks() {
     load()
   }
 
-  async function addTask(e) {
+  // Chiamato quando si preme Invio o si clicca il tasto AI
+  async function handleSubmit(e) {
     e.preventDefault()
-    if (!newTitle.trim()) return
-    await api('/api/tasks', { method: 'POST', body: { title: newTitle, type: 'task', priority: 'media' } })
+    const text = newTitle.trim()
+    if (!text) return
+    setParsing(true)
+    try {
+      const { parsed } = await api('/api/ai/parse-task', { method: 'POST', body: { text } })
+      setPreview({ ...parsed, assignee_id: '' })
+    } catch {
+      // fallback: crea direttamente senza AI
+      await api('/api/tasks', { method: 'POST', body: { title: text, type: 'task', priority: 'media' } })
+      setNewTitle('')
+      load()
+    }
+    setParsing(false)
+  }
+
+  async function confirmCreate() {
+    if (!preview) return
+    const body = {
+      title: preview.title,
+      type: preview.type || 'task',
+      priority: preview.priority || 'media',
+      due_date: preview.due_date || null,
+      urgent: preview.urgent || false,
+    }
+    if (preview.assignee_id) body.assigned_to_id = preview.assignee_id
+    await api('/api/tasks', { method: 'POST', body })
+    setPreview(null)
     setNewTitle('')
     load()
+    inputRef.current?.focus()
+  }
+
+  function dismissPreview() {
+    setPreview(null)
+    inputRef.current?.focus()
   }
 
   async function deleteTask(id) {
@@ -253,13 +302,81 @@ export default function Tasks() {
         )}
       </div>
 
+      {/* Preview AI card */}
+      {preview && (
+        <div className="px-4 pt-3 pb-1 bg-gradient-to-b from-brand-50 to-white border-t border-brand-100 flex-shrink-0">
+          <div className="flex items-center gap-1.5 mb-2">
+            <span className="text-xs font-700 text-brand-600">✦ Claude ha interpretato:</span>
+            <button onClick={dismissPreview} className="ml-auto text-warm-300 hover:text-warm-600 p-0.5">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5"><path d="M3 3l10 10M13 3L3 13"/></svg>
+            </button>
+          </div>
+
+          {/* Titolo editabile */}
+          <input
+            value={preview.title}
+            onChange={e => setPreview(p => ({ ...p, title: e.target.value }))}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmCreate() } }}
+            className="w-full text-sm font-600 text-warm-900 border border-brand-200 rounded-lg px-3 py-1.5 mb-2 focus:outline-none focus:border-brand-400 bg-white"
+          />
+
+          {/* Badges editabili */}
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {/* Tipo */}
+            <select value={preview.type} onChange={e => setPreview(p => ({ ...p, type: e.target.value }))}
+              className={`text-2xs font-700 px-2 py-1 rounded-full border-0 cursor-pointer focus:outline-none ${TYPE_COLORS[preview.type] || TYPE_COLORS.task}`}>
+              {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            {/* Priorità */}
+            <select value={preview.priority} onChange={e => setPreview(p => ({ ...p, priority: e.target.value }))}
+              className={`text-2xs font-700 px-2 py-1 rounded-full border-0 cursor-pointer focus:outline-none ${PRI_COLORS[preview.priority] || PRI_COLORS.media}`}>
+              {PRIS.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+            {/* Urgente */}
+            <button onClick={() => setPreview(p => ({ ...p, urgent: !p.urgent }))}
+              className={`text-2xs font-700 px-2 py-1 rounded-full transition-colors ${preview.urgent ? 'bg-red-100 text-red-600' : 'bg-warm-100 text-warm-400 hover:bg-warm-200'}`}>
+              ⚡ Urgente
+            </button>
+            {/* Data */}
+            <input type="date" value={preview.due_date || ''}
+              onChange={e => setPreview(p => ({ ...p, due_date: e.target.value || null }))}
+              className="text-2xs font-600 text-warm-600 bg-warm-100 rounded-full px-2 py-1 border-0 focus:outline-none cursor-pointer"/>
+          </div>
+
+          {/* Assegna a */}
+          {members.length > 0 && (
+            <div className="mb-2">
+              <select value={preview.assignee_id || ''} onChange={e => setPreview(p => ({ ...p, assignee_id: e.target.value }))}
+                className="text-xs border border-warm-200 rounded-lg px-2 py-1 bg-white text-warm-700 focus:outline-none focus:border-brand-400 w-full">
+                <option value="">Assegna a… {preview.assignee_hint ? `(suggerito: ${preview.assignee_hint})` : ''}</option>
+                {members.map(m => <option key={m.id} value={m.id}>{m.full_name} ({m.role})</option>)}
+              </select>
+            </div>
+          )}
+
+          <button onClick={confirmCreate}
+            className="w-full bg-brand-500 hover:bg-brand-600 text-white text-sm font-600 rounded-lg py-2 transition-colors">
+            Crea task
+          </button>
+        </div>
+      )}
+
       {/* Add task bar */}
-      <form onSubmit={addTask} className="px-4 py-3 bg-white border-t border-warm-200 flex gap-2 flex-shrink-0">
-        <input value={newTitle} onChange={e => setNewTitle(e.target.value)}
-          placeholder="Aggiungi un task..."
-          className="flex-1 text-sm border border-warm-200 rounded-lg px-3 py-2 focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/10 transition-all bg-warm-50"/>
-        <button type="submit" className="bg-brand-500 hover:bg-brand-600 text-white text-sm font-600 rounded-lg px-4 py-2 transition-colors">
-          Aggiungi
+      <form onSubmit={handleSubmit} className="px-4 py-3 bg-white border-t border-warm-200 flex gap-2 flex-shrink-0">
+        <input
+          ref={inputRef}
+          value={newTitle}
+          onChange={e => setNewTitle(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSubmit(e) } }}
+          placeholder={parsing ? 'Claude sta analizzando…' : 'Scrivi un task in modo naturale… (es: chiama Marco lunedì)'}
+          disabled={parsing || !!preview}
+          className="flex-1 text-sm border border-warm-200 rounded-lg px-3 py-2 focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/10 transition-all bg-warm-50 disabled:opacity-50"/>
+        <button type="submit" disabled={parsing || !!preview || !newTitle.trim()}
+          className="bg-brand-500 hover:bg-brand-600 text-white text-sm font-600 rounded-lg px-4 py-2 transition-colors disabled:opacity-40 flex items-center gap-1.5 flex-shrink-0">
+          {parsing
+            ? <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg>
+            : <span>✦ AI</span>
+          }
         </button>
       </form>
 
