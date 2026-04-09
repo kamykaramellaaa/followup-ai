@@ -20,14 +20,8 @@ const MICROSOFT_TENANT = process.env.MICROSOFT_TENANT || 'common';
 
 // Genera il link per autorizzazione (prima volta)
 router.get('/authorize', requireAuth, (req, res) => {
-  const authUrl = `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0/authorize?
-    client_id=${MICROSOFT_CLIENT_ID}
-    &response_type=code
-    &scope=https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Mail.Read offline_access
-    &redirect_uri=${encodeURIComponent(MICROSOFT_REDIRECT_URI)}
-    &state=${req.profile.id}
-    &prompt=consent`.replace(/\n/g, '').replace(/\s+/g, '');
-  
+  const scope = encodeURIComponent('https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Mail.Read offline_access');
+  const authUrl = `https://login.microsoftonline.com/${MICROSOFT_TENANT}/oauth2/v2.0/authorize?client_id=${MICROSOFT_CLIENT_ID}&response_type=code&scope=${scope}&redirect_uri=${encodeURIComponent(MICROSOFT_REDIRECT_URI)}&state=${req.profile.id}&prompt=consent`;
   res.json({ success: true, authUrl });
 });
 
