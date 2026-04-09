@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { startReminderCron, runReminderJob } = require('./services/emailReminder');
+const { requireAuth, requireRole } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -37,7 +38,7 @@ app.get('/health', (req, res) => {
 });
 
 // Test endpoint: triggera manualmente l'invio dei reminder (solo admin)
-app.post('/api/reminders/test', async (req, res) => {
+app.post('/api/reminders/test', requireAuth, requireRole('admin'), async (req, res) => {
   try {
     await runReminderJob();
     res.json({ success: true, message: 'Job reminder eseguito — controlla i log e la tua email' });
