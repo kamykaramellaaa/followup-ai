@@ -34,6 +34,9 @@ function ProjectModal({ project, onClose, onSaved, onDeleted }) {
     supplier: project?.supplier || '',
     weight_format: project?.weight_format || '',
     cost_per_unit: project?.cost_per_unit || '',
+    country_code: project?.country_code || '',
+    country: project?.country || '',
+    client: project?.client || '',
     notes: project?.notes || '',
   })
   const [saving, setSaving] = useState(false)
@@ -136,10 +139,33 @@ function ProjectModal({ project, onClose, onSaved, onDeleted }) {
           </div>
 
           <div>
-            <label className="text-xs font-600 text-warm-500 mb-1 block">Costo unitario (€)</label>
+            <label className="text-xs font-600 text-warm-500 mb-1 block">Costo indicativo (€)</label>
             <input type="number" step="0.01" value={form.cost_per_unit} onChange={e => set('cost_per_unit', e.target.value)}
               placeholder="0.00"
               className="w-full text-sm border border-warm-200 rounded-lg px-3 py-2 focus:outline-none focus:border-brand-400 bg-warm-50"/>
+          </div>
+
+          <div>
+            <label className="text-xs font-600 text-warm-500 mb-1 block">Cliente / Buyer</label>
+            <input value={form.client} onChange={e => set('client', e.target.value)}
+              placeholder="Es: VDB Frozen Food Production"
+              className="w-full text-sm border border-warm-200 rounded-lg px-3 py-2 focus:outline-none focus:border-brand-400 bg-warm-50"/>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-1">
+              <label className="text-xs font-600 text-warm-500 mb-1 block">Sigla paese</label>
+              <input value={form.country_code} onChange={e => set('country_code', e.target.value.toUpperCase().slice(0,2))}
+                placeholder="IT"
+                maxLength={2}
+                className="w-full text-sm border border-warm-200 rounded-lg px-3 py-2 focus:outline-none focus:border-brand-400 bg-warm-50 uppercase font-600"/>
+            </div>
+            <div className="col-span-2">
+              <label className="text-xs font-600 text-warm-500 mb-1 block">Paese destinazione</label>
+              <input value={form.country} onChange={e => set('country', e.target.value)}
+                placeholder="Es: Belgio"
+                className="w-full text-sm border border-warm-200 rounded-lg px-3 py-2 focus:outline-none focus:border-brand-400 bg-warm-50"/>
+            </div>
           </div>
 
           <div>

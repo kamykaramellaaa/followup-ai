@@ -18,6 +18,7 @@ router.get('/', requireAuth, async (req, res) => {
       .select(`
         id, name, description, market, stage, priority,
         supplier, weight_format, cost_per_unit, photo_url,
+        country_code, country, client,
         owner:profiles(full_name, id),
         created_at, updated_at
       `);
@@ -54,7 +55,7 @@ router.get('/:id', requireAuth, async (req, res) => {
 
 // POST nuovo progetto
 router.post('/', requireAuth, async (req, res) => {
-  const { name, description, market, stage, priority, supplier, weight_format, cost_per_unit, photo_url, notes } = req.body;
+  const { name, description, market, stage, priority, supplier, weight_format, cost_per_unit, photo_url, notes, country_code, country, client } = req.body;
 
   if (!name) {
     return res.status(400).json({ error: 'Nome progetto richiesto' });
@@ -74,6 +75,9 @@ router.post('/', requireAuth, async (req, res) => {
         cost_per_unit: cost_per_unit || null,
         photo_url: photo_url || null,
         notes: notes || null,
+        country_code: country_code || null,
+        country: country || null,
+        client: client || null,
         owner_id: req.profile.id,
         created_by: req.profile.id
       })
@@ -90,7 +94,7 @@ router.post('/', requireAuth, async (req, res) => {
 
 // PATCH aggiorna progetto
 router.patch('/:id', requireAuth, async (req, res) => {
-  const { name, description, market, stage, priority, supplier, weight_format, cost_per_unit, photo_url, notes } = req.body;
+  const { name, description, market, stage, priority, supplier, weight_format, cost_per_unit, photo_url, notes, country_code, country, client } = req.body;
 
   try {
     const { data, error } = await supabase
@@ -105,7 +109,10 @@ router.patch('/:id', requireAuth, async (req, res) => {
         ...(weight_format !== undefined && { weight_format }),
         ...(cost_per_unit !== undefined && { cost_per_unit }),
         ...(photo_url !== undefined && { photo_url }),
-        ...(notes !== undefined && { notes })
+        ...(notes !== undefined && { notes }),
+        ...(country_code !== undefined && { country_code }),
+        ...(country !== undefined && { country }),
+        ...(client !== undefined && { client })
       })
       .eq('id', req.params.id)
       .select()
