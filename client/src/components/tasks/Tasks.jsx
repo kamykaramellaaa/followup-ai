@@ -58,6 +58,11 @@ function SortableTask({ task, today, onToggle, onDelete, onDraft, onSync, onEdit
             </span>
           )}
           {task.assigned_to && <span className="text-2xs text-warm-400">{task.assigned_to.full_name}</span>}
+          {task.ai_generated && (
+            <span className="text-2xs font-700 px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-600 flex items-center gap-0.5">
+              ✦ AI
+            </span>
+          )}
         </div>
       </div>
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
@@ -181,6 +186,9 @@ export default function Tasks() {
   const [parsing, setParsing]       = useState(false)
   const [preview, setPreview]       = useState(null)
   const [members, setMembers]       = useState([])
+  const [processingEmails, setProcessingEmails] = useState(false)
+  const [emailResult, setEmailResult] = useState(null)
+  const [outlookConnected, setOutlookConnected] = useState(false)
   const aiInputRef = useRef(null)
 
   const sensors = useSensors(
@@ -200,8 +208,22 @@ export default function Tasks() {
   useEffect(() => {
     if (profile?.role === 'admin' || profile?.role === 'manager') {
       api('/api/team/members').then(d => setMembers(d.members || [])).catch(() => {})
+      api('/api/outlook/status').then(d => setOutlookConnected(d.connected)).catch(() => {})
     }
   }, [profile])
+
+  async function processEmails() {
+    setProcessingEmails(true)
+    setEmailResult(null)
+    try {
+      const r = await api('/api/outlook/process-emails', { method: 'POST', body: {} })
+      setEmailResult({ ok: true, count: r.processed })
+      if (r.processed > 0) load()
+    } catch (e) {
+      setEmailResult({ ok: false, error: e.message })
+    }
+    setProcessingEmails(false)
+  }
 
   const filtered = tasks.filter(t => {
     if (filterStatus && String(t.completed) !== filterStatus) return false
@@ -290,9 +312,25 @@ export default function Tasks() {
         <div className="flex items-center justify-between mb-3">
           <div>
             <h1 className="text-base font-bold tracking-tight text-warm-900">Task & Reminder</h1>
-            <p className="text-xs text-warm-400 mt-0.5">{filtered.length} task</p>
+            <p className="text-xs text-warm-400 mt-0.5">{filtered.length} task{tasks.filter(t=>t.ai_generated && !t.completed).length > 0 && <span className="ml-2 text-purple-500 font-600">· {tasks.filter(t=>t.ai_generated && !t.completed).length} da email</span>}</p>
           </div>
+          {outlookConnected && ['admin','manager'].includes(profile?.role) && (
+            <button onClick={processEmails} disabled={processingEmails}
+              className="flex items-center gap-1.5 text-xs font-600 px-3 py-1.5 rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-40">
+              {processingEmails
+                ? <span className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"/>
+                : <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5"><rect x="1.5" y="3.5" width="13" height="10" rx="1.5"/><path d="M1.5 6.5h13"/><path d="M5.5 6.5v7"/></svg>
+              }
+              {processingEmails ? 'Analisi...' : 'Analizza email'}
+            </button>
+          )}
         </div>
+        {emailResult && (
+          <div className={`mb-2 px-3 py-2 rounded-lg text-xs font-500 flex items-center justify-between ${emailResult.ok ? 'bg-purple-50 text-purple-700' : 'bg-red-50 text-red-600'}`}>
+            <span>{emailResult.ok ? (emailResult.count > 0 ? `✦ ${emailResult.count} email analizzate — nuove task create` : '✦ Nessuna email nuova da processare') : `✗ ${emailResult.error}`}</span>
+            <button onClick={() => setEmailResult(null)} className="opacity-50 hover:opacity-100 ml-2">✕</button>
+          </div>
+        )}
         <div className="flex gap-2 flex-wrap">
           {[
             { value: filterStatus, set: setFilterStatus, opts: [['','Tutti'],['false','Aperti'],['true','Completati']] },
