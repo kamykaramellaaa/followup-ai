@@ -4,6 +4,7 @@ import { api } from './lib/api'
 import Login from './components/auth/Login'
 import Layout from './components/layout/Layout'
 import Pipeline from './components/pipeline/Pipeline'
+import ProductPipeline from './components/pipeline/ProductPipeline'
 import Tasks from './components/tasks/Tasks'
 import Projects from './components/projects/Projects'
 import AINote from './components/ai/AINote'
@@ -37,8 +38,9 @@ export default function App() {
   const [team, setTeam] = useState([])
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState(null)
+  // Progetto da "Proponi" in Projects → passa a ProductPipeline
+  const [pipelinePreProject, setPipelinePreProject] = useState(null)
 
-  // Gestisci redirect Outlook (?outlook=success|error)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const ol = params.get('outlook')
@@ -76,13 +78,24 @@ export default function App() {
 
   if (!session || !profile) return <Login />
 
+  function handleProponiPipeline(project) {
+    setPipelinePreProject(project)
+    setView('vendite')
+  }
+
   const views = {
     pipeline: <Pipeline />,
     tasks: <Tasks />,
-    projects: <Projects />,
+    projects: <Projects onProponiPipeline={handleProponiPipeline} />,
     contacts: <Contacts />,
     ai: <AINote />,
     team: <Team />,
+    vendite: (
+      <ProductPipeline
+        preProject={pipelinePreProject}
+        onModalClose={() => setPipelinePreProject(null)}
+      />
+    ),
   }
 
   return (

@@ -7,53 +7,41 @@ import {
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
-const STAGES = [
+// ── Costanti ──────────────────────────────────────────────────────────────────
+
+// Le 2 macro-colonne del kanban
+const COLUMNS = [
   {
-    key: 'idea',
-    label: 'Idea',
-    color: 'text-slate-600',
-    dot: 'bg-slate-400',
-    bg: 'bg-slate-50',
-    headerBg: 'bg-slate-100',
-    border: 'border-slate-200',
-    cardBorder: 'border-l-slate-400',
-    badge: 'bg-slate-100 text-slate-600',
-  },
-  {
-    key: 'sviluppo',
-    label: 'Sviluppo',
+    key: 'sviluppi',
+    label: 'Sviluppi',
+    stages: ['idea', 'sviluppo', 'test'],
     color: 'text-blue-700',
     dot: 'bg-blue-500',
-    bg: 'bg-blue-50',
-    headerBg: 'bg-blue-100',
+    headerBg: 'bg-blue-50',
     border: 'border-blue-200',
-    cardBorder: 'border-l-blue-500',
-    badge: 'bg-blue-100 text-blue-700',
+    cardBorder: 'border-l-blue-400',
+    emptyColor: 'text-blue-400',
   },
   {
-    key: 'test',
-    label: 'Test',
-    color: 'text-amber-700',
-    dot: 'bg-amber-500',
-    bg: 'bg-amber-50',
-    headerBg: 'bg-amber-100',
-    border: 'border-amber-200',
-    cardBorder: 'border-l-amber-500',
-    badge: 'bg-amber-100 text-amber-700',
-  },
-  {
-    key: 'pronto',
-    label: 'Pronto',
+    key: 'pronti',
+    label: 'Pronti',
+    stages: ['pronto'],
     color: 'text-emerald-700',
     dot: 'bg-emerald-500',
-    bg: 'bg-emerald-50',
-    headerBg: 'bg-emerald-100',
+    headerBg: 'bg-emerald-50',
     border: 'border-emerald-200',
     cardBorder: 'border-l-emerald-500',
-    badge: 'bg-emerald-100 text-emerald-700',
+    emptyColor: 'text-emerald-400',
   },
 ]
-const stageMap = Object.fromEntries(STAGES.map(s => [s.key, s]))
+
+// Badge per sotto-stage (dettaglio nella card)
+const STAGE_BADGE = {
+  idea:     { label: 'Idea',     cls: 'bg-slate-100 text-slate-500' },
+  sviluppo: { label: 'Sviluppo', cls: 'bg-blue-100 text-blue-600' },
+  test:     { label: 'Test',     cls: 'bg-amber-100 text-amber-700' },
+  pronto:   { label: 'Pronto',   cls: 'bg-emerald-100 text-emerald-700' },
+}
 
 const MARKETS = ['Retail', 'Horeca', 'Export', 'Interno']
 const MARKET_COLORS = {
@@ -70,12 +58,12 @@ const PRIORITIES = [
 ]
 const priMap = Object.fromEntries(PRIORITIES.map(p => [p.key, p]))
 
+// ── Badge components ──────────────────────────────────────────────────────────
+
 function StageBadge({ stage }) {
-  const s = stageMap[stage] || stageMap.idea
-  return <span className={`inline-flex items-center gap-1 text-2xs font-700 px-2 py-0.5 rounded-full ${s.badge}`}>
-    <span className={`w-1 h-1 rounded-full ${s.dot}`}/>
-    {s.label}
-  </span>
+  const s = STAGE_BADGE[stage]
+  if (!s) return null
+  return <span className={`text-2xs font-600 px-1.5 py-0.5 rounded ${s.cls}`}>{s.label}</span>
 }
 
 function PriBadge({ priority }) {
@@ -92,8 +80,8 @@ function MarketBadge({ market }) {
   return <span className={`text-2xs font-700 px-2 py-0.5 rounded-full ${cls}`}>{market}</span>
 }
 
-// ── Modal crea/modifica progetto ──────────────────────────────────────
-function ProjectModal({ project, onClose, onSaved, onDeleted }) {
+// ── Modal crea/modifica progetto ──────────────────────────────────────────────
+function ProjectModal({ project, onClose, onSaved, onDeleted, onProponi }) {
   const { profile } = useApp()
   const isNew = !project
   const [form, setForm] = useState({
@@ -148,15 +136,16 @@ function ProjectModal({ project, onClose, onSaved, onDeleted }) {
     setDeleting(false)
   }
 
-  const currentStage = stageMap[form.stage]
+  const stageBg = {
+    idea: 'bg-slate-50', sviluppo: 'bg-blue-50', test: 'bg-amber-50', pronto: 'bg-emerald-50'
+  }
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-0 md:p-4"
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-lg max-h-[92vh] flex flex-col shadow-2xl">
 
-        {/* Header colorato per stage */}
-        <div className={`flex items-center gap-3 px-5 py-4 border-b rounded-t-2xl md:rounded-t-2xl ${currentStage?.headerBg || 'bg-white'} border-warm-100 flex-shrink-0`}>
+        <div className={`flex items-center gap-3 px-5 py-4 border-b rounded-t-2xl md:rounded-t-2xl ${stageBg[form.stage] || 'bg-white'} border-warm-100 flex-shrink-0`}>
           <div className="flex-1 min-w-0">
             <div className="font-700 text-warm-900 text-sm truncate">
               {isNew ? 'Nuovo progetto' : form.name}
@@ -168,12 +157,19 @@ function ProjectModal({ project, onClose, onSaved, onDeleted }) {
               </div>
             )}
           </div>
+          {/* Bottone Proponi — solo su progetti pronti esistenti */}
+          {!isNew && form.stage === 'pronto' && onProponi && (
+            <button onClick={() => { onClose(); onProponi(project) }}
+              className="text-xs font-600 bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3 h-3"><path d="M2 8h10M8 4l6 4-6 4"/></svg>
+              Proponi
+            </button>
+          )}
           <button onClick={onClose} className="text-warm-400 hover:text-warm-700 p-1">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M3 3l10 10M13 3L3 13"/></svg>
           </button>
         </div>
 
-        {/* Form */}
         <form id="proj-form" onSubmit={save} className="flex-1 overflow-y-auto p-5 space-y-4 scrollbar-none">
 
           <div>
@@ -188,7 +184,10 @@ function ProjectModal({ project, onClose, onSaved, onDeleted }) {
               <label className="text-xs font-600 text-warm-500 mb-1 block">Stage</label>
               <select value={form.stage} onChange={e => set('stage', e.target.value)}
                 className="w-full text-sm border border-warm-200 rounded-lg px-3 py-2 focus:outline-none focus:border-brand-400 bg-warm-50">
-                {STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+                <option value="idea">Idea</option>
+                <option value="sviluppo">Sviluppo</option>
+                <option value="test">Test</option>
+                <option value="pronto">Pronto</option>
               </select>
             </div>
             <div>
@@ -240,8 +239,7 @@ function ProjectModal({ project, onClose, onSaved, onDeleted }) {
             <div className="col-span-1">
               <label className="text-xs font-600 text-warm-500 mb-1 block">Sigla paese</label>
               <input value={form.country_code} onChange={e => set('country_code', e.target.value.toUpperCase().slice(0,2))}
-                placeholder="IT"
-                maxLength={2}
+                placeholder="IT" maxLength={2}
                 className="w-full text-sm border border-warm-200 rounded-lg px-3 py-2 focus:outline-none focus:border-brand-400 bg-warm-50 uppercase font-600 text-center tracking-widest"/>
             </div>
             <div className="col-span-2">
@@ -267,7 +265,6 @@ function ProjectModal({ project, onClose, onSaved, onDeleted }) {
 
         </form>
 
-        {/* Footer */}
         <div className="px-5 py-4 border-t border-warm-100 flex gap-2 flex-shrink-0">
           {!isNew && profile?.role === 'admin' && (
             <button onClick={del} disabled={deleting}
@@ -289,15 +286,13 @@ function ProjectModal({ project, onClose, onSaved, onDeleted }) {
   )
 }
 
-// ── Card Kanban ───────────────────────────────────────────────────────
-function SortableCard({ project, onClick }) {
+// ── Card Kanban ───────────────────────────────────────────────────────────────
+function SortableCard({ project, column, onClick }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: project.id })
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }
-  const stage = stageMap[project.stage] || stageMap.idea
 
   return (
     <div ref={setNodeRef} style={style} className="relative group/card">
-      {/* Drag handle */}
       <div {...attributes} {...listeners}
         className="absolute top-2 right-2 cursor-grab active:cursor-grabbing opacity-0 group-hover/card:opacity-60 transition-opacity touch-none z-10">
         <svg viewBox="0 0 8 14" fill="currentColor" className="w-2 h-3 text-warm-400">
@@ -307,18 +302,17 @@ function SortableCard({ project, onClick }) {
         </svg>
       </div>
       <div onClick={onClick}
-        className={`bg-white rounded-xl border border-l-4 border-warm-200 ${stage.cardBorder} p-3 cursor-pointer hover:shadow-md transition-all`}>
+        className={`bg-white rounded-xl border border-l-4 border-warm-200 ${column.cardBorder} p-3 cursor-pointer hover:shadow-md transition-all`}>
 
-        {/* Nome */}
-        <div className="font-600 text-sm text-warm-900 mb-2 pr-4 leading-snug">{project.name}</div>
+        <div className="font-600 text-sm text-warm-900 mb-1.5 pr-4 leading-snug">{project.name}</div>
 
-        {/* Badges */}
         <div className="flex flex-wrap gap-1 mb-2">
           {project.market && <MarketBadge market={project.market}/>}
           {project.priority && <PriBadge priority={project.priority}/>}
+          {/* sotto-stage visibile solo in colonna Sviluppi */}
+          {column.key === 'sviluppi' && <StageBadge stage={project.stage}/>}
         </div>
 
-        {/* Info secondarie */}
         <div className="space-y-0.5">
           {project.supplier && (
             <div className="flex items-center gap-1 text-xs text-warm-500">
@@ -337,7 +331,6 @@ function SortableCard({ project, onClick }) {
           )}
         </div>
 
-        {/* Footer card: costo + paese */}
         {(project.cost_per_unit || project.country_code) && (
           <div className="flex items-center justify-between mt-2 pt-2 border-t border-warm-100">
             {project.cost_per_unit
@@ -354,7 +347,7 @@ function SortableCard({ project, onClick }) {
   )
 }
 
-// ── Vista Tabella ─────────────────────────────────────────────────────
+// ── Vista Tabella ─────────────────────────────────────────────────────────────
 const TABLE_COLS = [
   { key: 'name',         label: 'Progetto' },
   { key: 'stage',        label: 'Stage' },
@@ -401,8 +394,7 @@ function TableView({ projects, onRowClick }) {
         <thead className="sticky top-0 z-10">
           <tr className="bg-white border-b border-warm-200">
             {TABLE_COLS.map(col => (
-              <th key={col.key}
-                onClick={() => toggleSort(col.key)}
+              <th key={col.key} onClick={() => toggleSort(col.key)}
                 className="text-left text-xs font-700 text-warm-500 uppercase tracking-wider px-4 py-3 cursor-pointer hover:text-warm-900 whitespace-nowrap select-none">
                 {col.label}<SortIcon col={col.key}/>
               </th>
@@ -410,39 +402,36 @@ function TableView({ projects, onRowClick }) {
           </tr>
         </thead>
         <tbody>
-          {sorted.map((p, i) => {
-            const stage = stageMap[p.stage] || stageMap.idea
-            return (
-              <tr key={p.id}
-                onClick={() => onRowClick(p)}
-                className={`border-b border-warm-100 cursor-pointer transition-colors hover:bg-brand-50/40 ${i % 2 === 0 ? 'bg-white' : 'bg-warm-50/40'}`}>
-                <td className="px-4 py-2.5">
-                  <div className={`flex items-center gap-2`}>
-                    <div className={`w-1 h-8 rounded-full flex-shrink-0 ${stage.dot}`}/>
-                    <span className="font-600 text-warm-900 leading-snug">{p.name}</span>
-                  </div>
-                </td>
-                <td className="px-4 py-2.5"><StageBadge stage={p.stage}/></td>
-                <td className="px-4 py-2.5">{p.market && <MarketBadge market={p.market}/>}</td>
-                <td className="px-4 py-2.5"><PriBadge priority={p.priority}/></td>
-                <td className="px-4 py-2.5 text-xs text-warm-600">{p.supplier || <span className="text-warm-300">—</span>}</td>
-                <td className="px-4 py-2.5 text-xs text-warm-500">{p.weight_format || <span className="text-warm-300">—</span>}</td>
-                <td className="px-4 py-2.5 text-xs font-700 text-warm-700">
-                  {p.cost_per_unit ? `€ ${Number(p.cost_per_unit).toFixed(2)}` : <span className="text-warm-300 font-400">—</span>}
-                </td>
-                <td className="px-4 py-2.5 text-xs text-warm-600">{p.client || <span className="text-warm-300">—</span>}</td>
-                <td className="px-4 py-2.5">
-                  {p.country_code
-                    ? <span className="inline-flex items-center gap-1 text-xs text-warm-600">
-                        <span className="font-mono font-700 bg-warm-100 px-1.5 py-0.5 rounded text-warm-500">{p.country_code}</span>
-                        {p.country && <span>{p.country}</span>}
-                      </span>
-                    : <span className="text-warm-300">—</span>
-                  }
-                </td>
-              </tr>
-            )
-          })}
+          {sorted.map((p, i) => (
+            <tr key={p.id} onClick={() => onRowClick(p)}
+              className={`border-b border-warm-100 cursor-pointer transition-colors hover:bg-brand-50/40 ${i % 2 === 0 ? 'bg-white' : 'bg-warm-50/40'}`}>
+              <td className="px-4 py-2.5">
+                <div className="flex items-center gap-2">
+                  <div className={`w-1 h-8 rounded-full flex-shrink-0 ${STAGE_BADGE[p.stage] ? 'bg-blue-400' : 'bg-warm-300'}`}
+                    style={p.stage === 'pronto' ? {background: '#10b981'} : p.stage === 'test' ? {background: '#f59e0b'} : p.stage === 'idea' ? {background: '#94a3b8'} : {}}/>
+                  <span className="font-600 text-warm-900 leading-snug">{p.name}</span>
+                </div>
+              </td>
+              <td className="px-4 py-2.5"><StageBadge stage={p.stage}/></td>
+              <td className="px-4 py-2.5">{p.market && <MarketBadge market={p.market}/>}</td>
+              <td className="px-4 py-2.5"><PriBadge priority={p.priority}/></td>
+              <td className="px-4 py-2.5 text-xs text-warm-600">{p.supplier || <span className="text-warm-300">—</span>}</td>
+              <td className="px-4 py-2.5 text-xs text-warm-500">{p.weight_format || <span className="text-warm-300">—</span>}</td>
+              <td className="px-4 py-2.5 text-xs font-700 text-warm-700">
+                {p.cost_per_unit ? `€ ${Number(p.cost_per_unit).toFixed(2)}` : <span className="text-warm-300 font-400">—</span>}
+              </td>
+              <td className="px-4 py-2.5 text-xs text-warm-600">{p.client || <span className="text-warm-300">—</span>}</td>
+              <td className="px-4 py-2.5">
+                {p.country_code
+                  ? <span className="inline-flex items-center gap-1 text-xs text-warm-600">
+                      <span className="font-mono font-700 bg-warm-100 px-1.5 py-0.5 rounded text-warm-500">{p.country_code}</span>
+                      {p.country && <span>{p.country}</span>}
+                    </span>
+                  : <span className="text-warm-300">—</span>
+                }
+              </td>
+            </tr>
+          ))}
           {sorted.length === 0 && (
             <tr><td colSpan={9} className="text-center text-warm-300 py-16 text-sm">Nessun progetto</td></tr>
           )}
@@ -452,15 +441,15 @@ function TableView({ projects, onRowClick }) {
   )
 }
 
-// ── Vista principale ──────────────────────────────────────────────────
-export default function Projects() {
+// ── Vista principale ──────────────────────────────────────────────────────────
+export default function Projects({ onProponiPipeline }) {
   const { profile } = useApp()
   const [projects, setProjects] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(null)
   const [filterMarket, setFilterMarket] = useState('')
   const [filterPri, setFilterPri] = useState('')
-  const [view, setView] = useState('kanban') // 'kanban' | 'table'
+  const [view, setView] = useState('kanban')
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState(null)
   const fileInputRef = useRef(null)
@@ -492,6 +481,19 @@ export default function Projects() {
     setProjects(prev => prev.filter(p => p.id !== id))
   }
 
+  function handleDragEnd(colKey, { active, over }) {
+    if (!over || active.id === over.id) return
+    setProjects(prev => {
+      const col = COLUMNS.find(c => c.key === colKey)
+      const colItems = prev.filter(p => col.stages.includes(p.stage))
+      const oldIdx = colItems.findIndex(p => p.id === active.id)
+      const newIdx = colItems.findIndex(p => p.id === over.id)
+      const reordered = arrayMove(colItems, oldIdx, newIdx)
+      const rest = prev.filter(p => !col.stages.includes(p.stage))
+      return [...rest, ...reordered]
+    })
+  }
+
   async function handleSync(e) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -503,27 +505,16 @@ export default function Projects() {
       form.append('file', file)
       const result = await api('/api/sync/progetti', { method: 'POST', body: form })
       setSyncResult({ ok: true, ...result })
-      load() // ricarica progetti
+      load()
     } catch (err) {
       setSyncResult({ ok: false, error: err.message })
     }
     setSyncing(false)
   }
 
-  function handleDragEnd(stageKey, { active, over }) {
-    if (!over || active.id === over.id) return
-    setProjects(prev => {
-      const stageItems = prev.filter(p => p.stage === stageKey)
-      const oldIdx = stageItems.findIndex(p => p.id === active.id)
-      const newIdx = stageItems.findIndex(p => p.id === over.id)
-      const reordered = arrayMove(stageItems, oldIdx, newIdx)
-      const rest = prev.filter(p => p.stage !== stageKey)
-      return [...rest, ...reordered]
-    })
-  }
-
-  // Riepilogo numeri per stage
-  const stageCounts = Object.fromEntries(STAGES.map(s => [s.key, filtered.filter(p => p.stage === s.key).length]))
+  const colCounts = Object.fromEntries(
+    COLUMNS.map(c => [c.key, filtered.filter(p => c.stages.includes(p.stage)).length])
+  )
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -531,13 +522,12 @@ export default function Projects() {
       <div className="px-6 py-4 bg-white border-b border-warm-200 flex items-center gap-3 flex-shrink-0">
         <div className="flex-1 min-w-0">
           <h1 className="text-base font-bold tracking-tight text-warm-900">Progetti</h1>
-          {/* Riepilogo stage inline */}
           <div className="flex items-center gap-3 mt-1 flex-wrap">
-            {STAGES.map(s => (
-              <span key={s.key} className="flex items-center gap-1 text-xs">
-                <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`}/>
-                <span className={`font-600 ${s.color}`}>{s.label}</span>
-                <span className="text-warm-400 font-400">{stageCounts[s.key]}</span>
+            {COLUMNS.map(c => (
+              <span key={c.key} className="flex items-center gap-1 text-xs">
+                <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`}/>
+                <span className={`font-600 ${c.color}`}>{c.label}</span>
+                <span className="text-warm-400 font-400">{colCounts[c.key]}</span>
               </span>
             ))}
             <span className="text-warm-300 text-xs">· {filtered.length} totali</span>
@@ -561,18 +551,11 @@ export default function Projects() {
         {/* Toggle Kanban / Tabella */}
         <div className="flex items-center bg-warm-100 rounded-lg p-0.5 gap-0.5">
           <button onClick={() => setView('kanban')}
-            className={`px-3 py-1.5 rounded-md text-xs font-600 transition-all flex items-center gap-1.5 ${view === 'kanban' ? 'bg-white text-warm-900 shadow-sm' : 'text-warm-400 hover:text-warm-700'}`}>
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5">
-              <rect x="1" y="3" width="4" height="10" rx="1"/><rect x="6" y="3" width="4" height="7" rx="1"/><rect x="11" y="3" width="4" height="12" rx="1"/>
-            </svg>
+            className={`px-3 py-1.5 rounded-md text-xs font-600 transition-all ${view === 'kanban' ? 'bg-white text-warm-900 shadow-sm' : 'text-warm-400 hover:text-warm-700'}`}>
             Kanban
           </button>
           <button onClick={() => setView('table')}
-            className={`px-3 py-1.5 rounded-md text-xs font-600 transition-all flex items-center gap-1.5 ${view === 'table' ? 'bg-white text-warm-900 shadow-sm' : 'text-warm-400 hover:text-warm-700'}`}>
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5">
-              <rect x="1" y="1" width="14" height="14" rx="1.5"/>
-              <path d="M1 5h14M1 9h14M1 13h14M5 1v14M11 1v14"/>
-            </svg>
+            className={`px-3 py-1.5 rounded-md text-xs font-600 transition-all ${view === 'table' ? 'bg-white text-warm-900 shadow-sm' : 'text-warm-400 hover:text-warm-700'}`}>
             Tabella
           </button>
         </div>
@@ -599,7 +582,7 @@ export default function Projects() {
         )}
       </div>
 
-      {/* Toast risultato sync */}
+      {/* Toast sync */}
       {syncResult && (
         <div className={`mx-4 mt-2 px-4 py-2.5 rounded-xl text-sm flex items-center justify-between gap-3 ${syncResult.ok ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
           <span>
@@ -633,35 +616,32 @@ export default function Projects() {
         <TableView projects={filtered} onRowClick={p => setModal(p)} />
       )}
 
-      {/* Vista Kanban */}
+      {/* Vista Kanban — 2 colonne */}
       {view === 'kanban' && (
         <div className="flex flex-1 overflow-x-auto scrollbar-none bg-warm-50">
-          {STAGES.map(stage => {
-            const cards = filtered.filter(p => p.stage === stage.key)
+          {COLUMNS.map(col => {
+            const cards = filtered.filter(p => col.stages.includes(p.stage))
             return (
-              <div key={stage.key} className={`min-w-[220px] flex-1 flex flex-col border-r border-warm-200 last:border-r-0`}>
-                {/* Colonna header colorata */}
-                <div className={`px-3 py-3 ${stage.headerBg} border-b ${stage.border} flex items-center gap-2 flex-shrink-0`}>
-                  <div className={`w-2 h-2 rounded-full ${stage.dot}`}/>
-                  <span className={`text-xs font-700 uppercase tracking-widest ${stage.color}`}>{stage.label}</span>
-                  <span className={`ml-auto text-xs font-700 ${stage.color} bg-white/60 px-2 py-0.5 rounded-full`}>{cards.length}</span>
+              <div key={col.key} className="flex-1 min-w-[280px] flex flex-col border-r border-warm-200 last:border-r-0">
+                <div className={`px-4 py-3 ${col.headerBg} border-b ${col.border} flex items-center gap-2 flex-shrink-0`}>
+                  <div className={`w-2 h-2 rounded-full ${col.dot}`}/>
+                  <span className={`text-xs font-700 uppercase tracking-widest ${col.color}`}>{col.label}</span>
+                  <span className={`ml-auto text-xs font-700 ${col.color} bg-white/60 px-2 py-0.5 rounded-full`}>{cards.length}</span>
                 </div>
-
-                {/* Cards */}
-                <div className="flex-1 overflow-y-auto p-2 scrollbar-none">
-                  {loading && [1,2].map(i => (
+                <div className="flex-1 overflow-y-auto p-3 scrollbar-none">
+                  {loading && [1,2,3].map(i => (
                     <div key={i} className="bg-white rounded-xl border border-warm-200 p-3 mb-2 animate-pulse h-24"/>
                   ))}
                   {!loading && (
                     <DndContext sensors={sensors} collisionDetection={closestCenter}
-                      onDragEnd={e => handleDragEnd(stage.key, e)}>
+                      onDragEnd={e => handleDragEnd(col.key, e)}>
                       <SortableContext items={cards.map(p => p.id)} strategy={verticalListSortingStrategy}>
                         <div className="space-y-2">
                           {cards.map(p => (
-                            <SortableCard key={p.id} project={p} onClick={() => setModal(p)} />
+                            <SortableCard key={p.id} project={p} column={col} onClick={() => setModal(p)} />
                           ))}
                           {cards.length === 0 && (
-                            <div className={`text-xs ${stage.color} opacity-40 text-center py-10 border-2 border-dashed ${stage.border} rounded-xl`}>
+                            <div className={`text-xs ${col.emptyColor} opacity-50 text-center py-12 border-2 border-dashed ${col.border} rounded-xl`}>
                               Nessun progetto
                             </div>
                           )}
@@ -676,18 +656,17 @@ export default function Projects() {
         </div>
       )}
 
-      {/* Loading tabella */}
       {view === 'table' && loading && (
         <div className="flex-1 flex items-center justify-center text-warm-300 text-sm">Caricamento...</div>
       )}
 
-      {/* Modal */}
       {modal && (
         <ProjectModal
           project={modal === 'new' ? null : modal}
           onClose={() => setModal(null)}
           onSaved={handleSaved}
           onDeleted={handleDeleted}
+          onProponi={onProponiPipeline}
         />
       )}
     </div>

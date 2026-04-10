@@ -39,6 +39,10 @@ const DEFAULT_NAV = [
     id: 'pipeline', label: 'Pipeline',
     icon: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><rect x="1" y="2" width="4" height="12" rx="1"/><rect x="7" y="2" width="4" height="8" rx="1"/><rect x="13" y="2" width="2" height="5" rx="1"/></svg>
   },
+  {
+    id: 'vendite', label: 'Vendite',
+    icon: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M2 12L6 7l3 3 5-6"/><path d="M11 4h3v3"/></svg>
+  },
 ]
 
 const STORAGE_KEY = 'followup-nav-order'
