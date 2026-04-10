@@ -16,7 +16,7 @@ router.get('/', requireAuth, async (req, res) => {
     let query = supabase
       .from('tasks')
       .select(`
-        id, title, type, due_date, urgent, completed,
+        id, title, task_type, due_date, urgent, completed,
         priority, contact_id, project_id, ai_generated,
         contact:contacts(name, company),
         project:projects(name),
@@ -75,7 +75,7 @@ router.post('/', requireAuth, async (req, res) => {
       .from('tasks')
       .insert({
         title,
-        type,
+        task_type: type,
         due_date: due_date || null,
         urgent: urgent || false,
         priority: priority || 'media',
@@ -111,7 +111,7 @@ router.post('/from-analysis', requireAuth, async (req, res) => {
   try {
     const tasksToInsert = analysis.tasks.map((t) => ({
       title: t.text,
-      type: t.type,
+      task_type: t.type,
       due_date: t.when ? calculateDueDate(t.when) : null,
       urgent: t.urgent || false,
       priority: analysis.urgency === 'alta' ? 'alta' : analysis.urgency === 'media' ? 'media' : 'bassa',
@@ -143,7 +143,7 @@ router.patch('/:id', requireAuth, async (req, res) => {
       .from('tasks')
       .update({
         ...(title && { title }),
-        ...(type && { type }),
+        ...(type && { task_type: type }),
         ...(due_date !== undefined && { due_date }),
         ...(urgent !== undefined && { urgent }),
         ...(priority && { priority }),

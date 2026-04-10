@@ -11,9 +11,9 @@ router.get('/', requireAuth, async (req, res) => {
       .from('projects')
       .select(`
         *,
-        owner:profiles!projects_owner_id_fkey(id, full_name),
+        owner:profiles!owner_id(id, full_name),
         milestones(id, title, completed, due_date),
-        project_members(user_id, role, member:profiles!project_members_user_id_fkey(full_name)),
+        project_members(user_id, role, member:profiles!user_id(full_name)),
         project_tasks(id, status, priority, assigned_to)
       `)
       .order('created_at', { ascending: false });
@@ -67,7 +67,7 @@ router.get('/:id', requireAuth, async (req, res) => {
       .from('projects')
       .select(`
         *,
-        owner:profiles!projects_owner_id_fkey(id, full_name, role),
+        owner:profiles!owner_id(id, full_name, role),
         milestones(*, created_by_profile:profiles!milestones_created_by_fkey(full_name)),
         project_members(user_id, role, member:profiles!project_members_user_id_fkey(id, full_name, role)),
         project_contacts(contact_id, role, contact:contacts!project_contacts_contact_id_fkey(id, name, company, stage)),
