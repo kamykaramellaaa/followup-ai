@@ -32,6 +32,7 @@ app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/projects', require('./routes/projects-new'));
 app.use('/api/outlook', require('./routes/outlook'));
 app.use('/api/team', require('./routes/team'));
+app.use('/api/sync', require('./routes/sync'));
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
