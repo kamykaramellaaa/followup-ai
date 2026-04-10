@@ -18,6 +18,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
+// 'ai' (Nota vocale) è solo mobile — non appare in sidebar desktop
 const ALL_NAV = [
   {
     id: 'tasks', label: 'Task', roles: ['admin', 'manager', 'employee'],
@@ -30,10 +31,6 @@ const ALL_NAV = [
   {
     id: 'contacts', label: 'Contatti', roles: ['admin', 'manager', 'employee'],
     icon: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M10 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/><path d="M1 14a6 6 0 0 1 12 0"/></svg>
-  },
-  {
-    id: 'ai', label: 'Nota AI', roles: ['admin', 'manager', 'employee'],
-    icon: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M8 1.5a3 3 0 0 1 3 3v3a3 3 0 0 1-6 0v-3a3 3 0 0 1 3-3z"/><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.5"/></svg>
   },
   {
     id: 'vendite', label: 'Vendite', roles: ['admin', 'manager', 'agent'],
