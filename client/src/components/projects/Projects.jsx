@@ -451,6 +451,7 @@ export default function Projects({ onProponiPipeline }) {
   const [filterPri, setFilterPri] = useState('')
   const [view, setView] = useState('kanban')
   const [syncing, setSyncing] = useState(false)
+  const [deduping, setDeduping] = useState(false)
   const [syncResult, setSyncResult] = useState(null)
   const fileInputRef = useRef(null)
 
@@ -492,6 +493,19 @@ export default function Projects({ onProponiPipeline }) {
       const rest = prev.filter(p => !col.stages.includes(p.stage))
       return [...rest, ...reordered]
     })
+  }
+
+  async function handleDedup() {
+    setDeduping(true)
+    setSyncResult(null)
+    try {
+      const result = await api('/api/sync/dedup', { method: 'POST', body: {} })
+      setSyncResult({ ok: true, inserted: 0, updated: 0, skipped: 0, deleted_duplicates: result.deleted })
+      if (result.deleted > 0) load()
+    } catch (err) {
+      setSyncResult({ ok: false, error: err.message })
+    }
+    setDeduping(false)
   }
 
   async function handleSync(e) {
@@ -562,6 +576,14 @@ export default function Projects({ onProponiPipeline }) {
 
         {profile?.role === 'admin' && (
           <>
+            <button onClick={handleDedup} disabled={deduping}
+              className="text-sm font-600 rounded-lg px-3 py-2 border border-warm-200 hover:border-red-300 text-warm-400 hover:text-red-500 transition-colors flex items-center gap-1.5 flex-shrink-0 disabled:opacity-40"
+              title="Rimuovi duplicati">
+              {deduping
+                ? <span className="w-3.5 h-3.5 border-2 border-red-300 border-t-transparent rounded-full animate-spin"/>
+                : <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+              }
+            </button>
             <input ref={fileInputRef} type="file" accept=".xlsx" className="hidden" onChange={handleSync}/>
             <button onClick={() => fileInputRef.current?.click()} disabled={syncing}
               className="text-sm font-600 rounded-lg px-3 py-2 border border-warm-200 hover:border-brand-400 text-warm-600 hover:text-brand-600 transition-colors flex items-center gap-1.5 flex-shrink-0 disabled:opacity-40">

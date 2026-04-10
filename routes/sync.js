@@ -163,4 +163,33 @@ router.post('/progetti', requireSyncAuth, upload.single('file'), async (req, res
   }
 });
 
+// ── POST /api/sync/dedup — rimuovi duplicati senza file Excel ────────────────
+router.post('/dedup', requireSyncAuth, async (req, res) => {
+  try {
+    const { data, error } = await sb
+      .from('projects')
+      .select('id, name, created_at')
+      .order('created_at', { ascending: true });
+
+    if (error) throw new Error(error.message);
+
+    const seen = new Map();
+    const toDelete = [];
+    for (const p of data) {
+      const key = p.name.trim().toLowerCase();
+      if (seen.has(key)) toDelete.push(p.id);
+      else seen.set(key, p.id);
+    }
+
+    if (toDelete.length > 0) {
+      const { error: delErr } = await sb.from('projects').delete().in('id', toDelete);
+      if (delErr) throw new Error(delErr.message);
+    }
+
+    res.json({ success: true, deleted: toDelete.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
