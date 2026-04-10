@@ -60,30 +60,51 @@ export default function AINote() {
 
   async function startRec() {
     setError('')
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => null)
-    if (!stream) { setError('Microfono non disponibile'); return }
-    mediaRec.current = new MediaRecorder(stream)
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError('Registrazione audio non supportata su questo browser. Usa Chrome o Safari su HTTPS.')
+      return
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(err => {
+      if (err.name === 'NotAllowedError') setError('Permesso microfono negato. Abilitalo nelle impostazioni del browser.')
+      else setError('Microfono non disponibile: ' + err.message)
+      return null
+    })
+    if (!stream) return
+
+    // Rileva il formato supportato (Safari usa mp4, Chrome webm)
+    const mimeType = [
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/mp4',
+      'audio/ogg;codecs=opus',
+      'audio/ogg',
+    ].find(m => MediaRecorder.isTypeSupported(m)) || ''
+
+    mediaRec.current = new MediaRecorder(stream, mimeType ? { mimeType } : {})
     chunks.current = []
-    mediaRec.current.ondataavailable = e => chunks.current.push(e.data)
-    mediaRec.current.start()
+    mediaRec.current.ondataavailable = e => { if (e.data.size > 0) chunks.current.push(e.data) }
+    mediaRec.current.start(100) // raccogli chunk ogni 100ms
     setMode('recording')
   }
 
   async function stopRec() {
+    if (!mediaRec.current) return
+    const mimeType = mediaRec.current.mimeType || 'audio/webm'
     mediaRec.current.stop()
     mediaRec.current.stream.getTracks().forEach(t => t.stop())
     setMode('transcribing')
-    await new Promise(r => mediaRec.current.onstop = r)
-    const blob = new Blob(chunks.current, { type: 'audio/webm' })
+    await new Promise(r => { mediaRec.current.onstop = r })
+    const ext = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('ogg') ? 'ogg' : 'webm'
+    const blob = new Blob(chunks.current, { type: mimeType })
     const form = new FormData()
-    form.append('audio', blob, 'audio.webm')
+    form.append('audio', blob, `audio.${ext}`)
     try {
       const d = await api('/api/transcribe', { method: 'POST', body: form })
       setNote(d.transcript)
       setTranscript(d.transcript)
       await analyze(d.transcript)
-    } catch {
-      setError('Errore trascrizione audio. Riprova.')
+    } catch (err) {
+      setError('Errore trascrizione: ' + (err.message || 'Riprova'))
       setMode('idle')
     }
   }

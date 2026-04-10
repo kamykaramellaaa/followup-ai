@@ -71,6 +71,17 @@ const DEFAULT_DEV_STEPS = [
   { id: '6', title: 'Approvazione finale',   completed: false },
 ]
 
+const STEP_COLORS = [
+  { bg: 'bg-indigo-50',  border: 'border-l-indigo-400',  dot: 'bg-indigo-500',  text: 'text-indigo-700',  badge: 'bg-indigo-100 text-indigo-700'  },
+  { bg: 'bg-blue-50',    border: 'border-l-blue-400',    dot: 'bg-blue-500',    text: 'text-blue-700',    badge: 'bg-blue-100 text-blue-700'      },
+  { bg: 'bg-cyan-50',    border: 'border-l-cyan-400',    dot: 'bg-cyan-500',    text: 'text-cyan-700',    badge: 'bg-cyan-100 text-cyan-700'      },
+  { bg: 'bg-teal-50',    border: 'border-l-teal-400',    dot: 'bg-teal-500',    text: 'text-teal-700',    badge: 'bg-teal-100 text-teal-700'      },
+  { bg: 'bg-violet-50',  border: 'border-l-violet-400',  dot: 'bg-violet-500',  text: 'text-violet-700',  badge: 'bg-violet-100 text-violet-700'  },
+  { bg: 'bg-purple-50',  border: 'border-l-purple-400',  dot: 'bg-purple-500',  text: 'text-purple-700',  badge: 'bg-purple-100 text-purple-700'  },
+  { bg: 'bg-pink-50',    border: 'border-l-pink-400',    dot: 'bg-pink-500',    text: 'text-pink-700',    badge: 'bg-pink-100 text-pink-700'      },
+  { bg: 'bg-orange-50',  border: 'border-l-orange-400',  dot: 'bg-orange-500',  text: 'text-orange-700',  badge: 'bg-orange-100 text-orange-700'  },
+]
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function MarketBadge({ market }) {
@@ -505,42 +516,60 @@ function SviluppoView({ project: initialProject, onBack, onSaved, onDeleted, onA
         <div className="max-w-2xl mx-auto px-6 py-6 space-y-3">
 
           {/* Step cards */}
-          {steps.map((step, i) => (
-            <div key={step.id}
-              className={`flex items-center gap-4 p-4 rounded-xl border transition-all group ${step.completed ? 'bg-warm-50 border-warm-100' : 'bg-white border-warm-200 hover:border-blue-200 hover:shadow-sm'}`}>
-              <button onClick={() => toggleStep(step.id)}
-                className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${step.completed ? 'bg-emerald-500 border-emerald-500' : 'border-warm-300 hover:border-blue-400'}`}>
-                {step.completed && (
-                  <svg viewBox="0 0 10 10" fill="none" className="w-3 h-3">
-                    <path d="M2 5l2.5 2.5L8 3" stroke="#fff" strokeWidth="1.5"/>
-                  </svg>
-                )}
-              </button>
-              <div className="flex-1 min-w-0">
-                <span className={`text-sm font-500 transition-colors ${step.completed ? 'line-through text-warm-400' : 'text-warm-900'}`}>
-                  {step.title}
-                </span>
-                {step.completed && step.completed_at && (
-                  <div className="text-2xs text-warm-300 mt-0.5">
-                    {new Date(step.completed_at).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
+          {steps.map((step, i) => {
+            const c = STEP_COLORS[i % STEP_COLORS.length]
+            return (
+              <div key={step.id} className={`group flex gap-4 p-5 rounded-2xl border-l-4 border border-warm-100 shadow-sm transition-all
+                ${step.completed ? 'bg-warm-50 opacity-70' : `${c.bg} ${c.border} hover:shadow-md`}`}>
+                {/* Numero step */}
+                <div className="flex-shrink-0 flex flex-col items-center gap-2">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-700 text-sm
+                    ${step.completed ? 'bg-emerald-100 text-emerald-600' : `${c.badge}`}`}>
+                    {step.completed
+                      ? <svg viewBox="0 0 10 10" fill="none" className="w-4 h-4"><path d="M2 5l2.5 2.5L8 3" stroke="currentColor" strokeWidth="1.5"/></svg>
+                      : i + 1}
                   </div>
+                  {i < steps.length - 1 && (
+                    <div className={`w-0.5 flex-1 min-h-4 rounded-full ${step.completed ? 'bg-emerald-200' : 'bg-warm-200'}`}/>
+                  )}
+                </div>
+                {/* Contenuto */}
+                <div className="flex-1 min-w-0 pt-1">
+                  <button onClick={() => toggleStep(step.id)} className="w-full text-left group/toggle">
+                    <span className={`text-base font-600 transition-colors leading-snug
+                      ${step.completed ? 'line-through text-warm-400' : `${c.text} group-hover/toggle:opacity-80`}`}>
+                      {step.title}
+                    </span>
+                  </button>
+                  {step.completed && step.completed_at && (
+                    <div className="text-xs text-warm-400 mt-1 flex items-center gap-1">
+                      <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3 h-3"><circle cx="6" cy="6" r="4.5"/><path d="M6 3.5V6l1.5 1.5"/></svg>
+                      Completato {new Date(step.completed_at).toLocaleDateString('it-IT', { day: '2-digit', month: 'long' })}
+                    </div>
+                  )}
+                  {!step.completed && (
+                    <div className="mt-2">
+                      <button onClick={() => toggleStep(step.id)}
+                        className={`text-xs font-600 px-3 py-1 rounded-lg ${c.badge} hover:opacity-80 transition-opacity`}>
+                        Segna come fatto
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {/* Elimina */}
+                {profile?.role === 'admin' && (
+                  <button onClick={() => removeStep(step.id)}
+                    className="opacity-0 group-hover:opacity-100 text-warm-300 hover:text-red-400 transition-all p-1 flex-shrink-0 self-start mt-1">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+                  </button>
                 )}
               </div>
-              <span className={`text-2xs font-700 px-2 py-0.5 rounded-full ${step.completed ? 'bg-emerald-100 text-emerald-600' : 'bg-warm-100 text-warm-400'}`}>
-                {step.completed ? 'Fatto' : `Step ${i + 1}`}
-              </span>
-              {profile?.role === 'admin' && (
-                <button onClick={() => removeStep(step.id)}
-                  className="opacity-0 group-hover:opacity-100 text-warm-300 hover:text-red-400 transition-all p-1">
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5"><path d="M4 4l8 8M12 4l-8 8"/></svg>
-                </button>
-              )}
-            </div>
-          ))}
+            )
+          })}
 
           {/* Aggiungi step */}
-          <form onSubmit={addStep} className="flex items-center gap-3 p-4 rounded-xl border border-dashed border-warm-200 hover:border-blue-300 transition-colors">
-            <div className="w-5 h-5 rounded-full border-2 border-dashed border-warm-300 flex-shrink-0"/>
+          <form onSubmit={addStep} className="flex items-center gap-3 p-4 rounded-xl border border-dashed border-warm-200 hover:border-blue-300 transition-colors mt-2">
+            <div className="w-8 h-8 rounded-full border-2 border-dashed border-warm-300 flex items-center justify-center text-warm-300 text-lg font-300 flex-shrink-0">+</div>
             <input value={newStepTitle} onChange={e => setNewStepTitle(e.target.value)}
               placeholder="Aggiungi nuovo step..."
               className="flex-1 text-sm text-warm-600 bg-transparent focus:outline-none placeholder-warm-300"/>
@@ -556,6 +585,16 @@ function SviluppoView({ project: initialProject, onBack, onSaved, onDeleted, onA
             <textarea value={notes} onChange={e => setNotes(e.target.value)} onBlur={saveNotes} rows={4}
               placeholder="Aggiungi note sul progetto..."
               className="w-full text-sm border border-warm-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-300 bg-warm-50 resize-none"/>
+          </div>
+
+          {/* Pulsante Pronto in fondo */}
+          <div className="pt-6 pb-4 flex justify-end">
+            <button onClick={advance} disabled={advancing}
+              className={`text-sm font-700 rounded-xl px-8 py-3 transition-all flex items-center gap-2 shadow-sm
+                ${allDone ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-200' : 'bg-blue-100 hover:bg-blue-200 text-blue-700'}
+                disabled:opacity-40`}>
+              {advancing ? '...' : <><span>Segna come Pronto</span><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4"><path d="M3 8h10M9 4l4 4-4 4"/></svg></>}
+            </button>
           </div>
         </div>
       </div>
