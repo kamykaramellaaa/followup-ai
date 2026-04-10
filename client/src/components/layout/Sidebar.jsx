@@ -18,47 +18,43 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
-const DEFAULT_NAV = [
+const ALL_NAV = [
   {
-    id: 'tasks', label: 'Task',
+    id: 'tasks', label: 'Task', roles: ['admin', 'manager', 'employee'],
     icon: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M2 4h12M2 8h8M2 12h5"/></svg>
   },
   {
-    id: 'projects', label: 'Progetti',
+    id: 'projects', label: 'Progetti', roles: ['admin', 'manager', 'employee'],
     icon: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1"/><rect x="9" y="9" width="5.5" height="5.5" rx="1"/></svg>
   },
   {
-    id: 'contacts', label: 'Contatti',
+    id: 'contacts', label: 'Contatti', roles: ['admin', 'manager', 'employee'],
     icon: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M10 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/><path d="M1 14a6 6 0 0 1 12 0"/></svg>
   },
   {
-    id: 'ai', label: 'Nota AI',
+    id: 'ai', label: 'Nota AI', roles: ['admin', 'manager', 'employee'],
     icon: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M8 1.5a3 3 0 0 1 3 3v3a3 3 0 0 1-6 0v-3a3 3 0 0 1 3-3z"/><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.5"/></svg>
   },
   {
-    id: 'pipeline', label: 'Pipeline',
-    icon: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><rect x="1" y="2" width="4" height="12" rx="1"/><rect x="7" y="2" width="4" height="8" rx="1"/><rect x="13" y="2" width="2" height="5" rx="1"/></svg>
-  },
-  {
-    id: 'vendite', label: 'Vendite',
+    id: 'vendite', label: 'Vendite', roles: ['admin', 'manager', 'agent'],
     icon: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M2 12L6 7l3 3 5-6"/><path d="M11 4h3v3"/></svg>
   },
 ]
 
 const STORAGE_KEY = 'followup-nav-order'
 
-function loadOrder() {
+function loadOrder(role) {
+  const visibleNav = ALL_NAV.filter(n => !n.roles || n.roles.includes(role))
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
-    if (!saved) return DEFAULT_NAV
+    if (!saved) return visibleNav
     const ids = JSON.parse(saved)
-    const map = Object.fromEntries(DEFAULT_NAV.map(n => [n.id, n]))
+    const map = Object.fromEntries(visibleNav.map(n => [n.id, n]))
     const ordered = ids.map(id => map[id]).filter(Boolean)
-    // add any new items not in saved order
-    DEFAULT_NAV.forEach(n => { if (!ids.includes(n.id)) ordered.push(n) })
+    visibleNav.forEach(n => { if (!ids.includes(n.id)) ordered.push(n) })
     return ordered
   } catch {
-    return DEFAULT_NAV
+    return visibleNav
   }
 }
 
@@ -157,7 +153,7 @@ function OutlookSection() {
 
 export default function Sidebar() {
   const { profile, view, setView } = useApp()
-  const [navItems, setNavItems] = useState(loadOrder)
+  const [navItems, setNavItems] = useState(() => loadOrder(profile?.role || 'employee'))
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),

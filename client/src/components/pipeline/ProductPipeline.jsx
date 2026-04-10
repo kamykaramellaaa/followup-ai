@@ -46,19 +46,21 @@ const STAGES = [
 ]
 const stageMap = Object.fromEntries(STAGES.map(s => [s.key, s]))
 
-// ── Modal crea/modifica opportunità ───────────────────────────────────────────
+// ── Modal crea/modifica opportunità (admin e manager) ─────────────────────────
 function OpportunityModal({ opp, preProject, onClose, onSaved, onDeleted }) {
   const { profile } = useApp()
   const isNew = !opp
   const [projects, setProjects] = useState([])
   const [contacts, setContacts] = useState([])
+  const [agents, setAgents] = useState([])
   const [form, setForm] = useState({
-    project_id: opp?.project?.id || preProject?.id || '',
-    contact_id: opp?.contact?.id || '',
+    project_id:   opp?.project?.id || preProject?.id || '',
+    contact_id:   opp?.contact?.id || '',
     contact_name: opp?.contact_name || opp?.contact?.name || '',
-    stage: opp?.stage || 'proposto',
-    notes: opp?.notes || '',
+    stage:        opp?.stage || 'proposto',
+    notes:        opp?.notes || '',
     value_estimate: opp?.value_estimate || '',
+    assigned_to:  opp?.assigned?.id || '',
   })
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -66,6 +68,7 @@ function OpportunityModal({ opp, preProject, onClose, onSaved, onDeleted }) {
   useEffect(() => {
     api('/api/projects').then(d => setProjects((d.projects || []).filter(p => p.stage === 'pronto')))
     api('/api/contacts').then(d => setContacts(d.contacts || []))
+    api('/api/team/members').then(d => setAgents((d.members || []).filter(m => m.role === 'agent')))
   }, [])
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -75,12 +78,13 @@ function OpportunityModal({ opp, preProject, onClose, onSaved, onDeleted }) {
     setSaving(true)
     try {
       const body = {
-        project_id: form.project_id,
-        contact_id: form.contact_id || null,
-        contact_name: form.contact_name || null,
-        stage: form.stage,
-        notes: form.notes || null,
+        project_id:     form.project_id,
+        contact_id:     form.contact_id || null,
+        contact_name:   form.contact_name || null,
+        stage:          form.stage,
+        notes:          form.notes || null,
         value_estimate: form.value_estimate ? parseFloat(form.value_estimate) : null,
+        assigned_to:    form.assigned_to || null,
       }
       const d = isNew
         ? await api('/api/pipeline', { method: 'POST', body })
@@ -146,7 +150,7 @@ function OpportunityModal({ opp, preProject, onClose, onSaved, onDeleted }) {
           </div>
 
           <div>
-            <label className="text-xs font-600 text-warm-500 mb-1 block">Cliente</label>
+            <label className="text-xs font-600 text-warm-500 mb-1 block">Cliente / Buyer</label>
             <select value={form.contact_id} onChange={e => {
               const c = contacts.find(c => c.id === e.target.value)
               set('contact_id', e.target.value)
@@ -161,11 +165,21 @@ function OpportunityModal({ opp, preProject, onClose, onSaved, onDeleted }) {
               className="w-full text-sm border border-warm-200 rounded-lg px-3 py-2 mt-1.5 focus:outline-none focus:border-brand-400 bg-warm-50"/>
           </div>
 
-          <div>
-            <label className="text-xs font-600 text-warm-500 mb-1 block">Valore stimato (€)</label>
-            <input type="number" step="0.01" value={form.value_estimate} onChange={e => set('value_estimate', e.target.value)}
-              placeholder="0.00"
-              className="w-full text-sm border border-warm-200 rounded-lg px-3 py-2 focus:outline-none focus:border-brand-400 bg-warm-50"/>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-600 text-warm-500 mb-1 block">Valore stimato (€)</label>
+              <input type="number" step="0.01" value={form.value_estimate} onChange={e => set('value_estimate', e.target.value)}
+                placeholder="0.00"
+                className="w-full text-sm border border-warm-200 rounded-lg px-3 py-2 focus:outline-none focus:border-brand-400 bg-warm-50"/>
+            </div>
+            <div>
+              <label className="text-xs font-600 text-warm-500 mb-1 block">Assegna ad agente</label>
+              <select value={form.assigned_to} onChange={e => set('assigned_to', e.target.value)}
+                className="w-full text-sm border border-warm-200 rounded-lg px-3 py-2 focus:outline-none focus:border-brand-400 bg-warm-50">
+                <option value="">Nessuno</option>
+                {agents.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+              </select>
+            </div>
           </div>
 
           <div>
@@ -178,7 +192,7 @@ function OpportunityModal({ opp, preProject, onClose, onSaved, onDeleted }) {
         </form>
 
         <div className="px-5 py-4 border-t border-warm-100 flex gap-2 flex-shrink-0">
-          {!isNew && (profile?.role === 'admin') && (
+          {!isNew && profile?.role === 'admin' && (
             <button onClick={del} disabled={deleting}
               className="text-sm text-red-500 hover:text-red-700 font-500 border border-red-200 rounded-xl px-4 py-2 disabled:opacity-40">
               {deleting ? '...' : 'Elimina'}
@@ -189,6 +203,69 @@ function OpportunityModal({ opp, preProject, onClose, onSaved, onDeleted }) {
           <button form="opp-form" type="submit" disabled={saving}
             className="bg-brand-500 hover:bg-brand-600 text-white text-sm font-600 rounded-xl px-5 py-2 disabled:opacity-40">
             {saving ? 'Salvo...' : isNew ? 'Crea' : 'Salva'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Modal aggiornamento agente (solo stage + note) ────────────────────────────
+function AgentUpdateModal({ opp, onClose, onSaved }) {
+  const [form, setForm] = useState({ stage: opp.stage, notes: opp.notes || '' })
+  const [saving, setSaving] = useState(false)
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const currentStage = stageMap[form.stage]
+
+  async function save(e) {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      const d = await api(`/api/pipeline/${opp.id}`, { method: 'PATCH', body: { stage: form.stage, notes: form.notes } })
+      onSaved(d.opportunity, false)
+      onClose()
+    } catch (err) { alert(err.message) }
+    setSaving(false)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-0 md:p-4"
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-sm max-h-[80vh] flex flex-col shadow-2xl">
+        <div className={`flex items-center gap-3 px-5 py-4 border-b ${currentStage?.headerBg || 'bg-white'} border-warm-100 rounded-t-2xl flex-shrink-0`}>
+          <div className={`w-2.5 h-2.5 rounded-full ${currentStage?.dot || 'bg-warm-300'}`}/>
+          <div className="flex-1 min-w-0">
+            <div className="font-700 text-warm-900 text-sm truncate">{opp.project?.name || '—'}</div>
+            <div className="text-xs text-warm-400 mt-0.5">{opp.contact?.name || opp.contact_name || ''}</div>
+          </div>
+          <button onClick={onClose} className="text-warm-400 hover:text-warm-700 p-1">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4"><path d="M3 3l10 10M13 3L3 13"/></svg>
+          </button>
+        </div>
+        <form id="agent-opp-form" onSubmit={save} className="flex-1 overflow-y-auto p-5 space-y-4 scrollbar-none">
+          <div>
+            <label className="text-xs font-600 text-warm-500 mb-1.5 block">Fase</label>
+            <div className="grid grid-cols-2 gap-2">
+              {STAGES.map(s => (
+                <button key={s.key} type="button" onClick={() => set('stage', s.key)}
+                  className={`py-2 rounded-xl text-xs font-600 border-2 transition-all ${form.stage === s.key ? `${s.badge} border-current` : 'border-warm-200 text-warm-400 hover:border-warm-300'}`}>
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-600 text-warm-500 mb-1 block">Note</label>
+            <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={4}
+              placeholder="Aggiorna con feedback, prossimi passi..."
+              className="w-full text-sm border border-warm-200 rounded-lg px-3 py-2 focus:outline-none focus:border-brand-400 bg-warm-50 resize-none"/>
+          </div>
+        </form>
+        <div className="px-5 py-4 border-t border-warm-100 flex gap-2 flex-shrink-0 justify-end">
+          <button onClick={onClose} className="text-sm text-warm-500 border border-warm-200 rounded-xl px-4 py-2">Annulla</button>
+          <button form="agent-opp-form" type="submit" disabled={saving}
+            className="bg-brand-500 hover:bg-brand-600 text-white text-sm font-600 rounded-xl px-5 py-2 disabled:opacity-40">
+            {saving ? 'Salvo...' : 'Aggiorna'}
           </button>
         </div>
       </div>
@@ -215,6 +292,13 @@ function OppCard({ opp, stage, onClick }) {
         <span className="text-xs text-warm-600 truncate font-500">{clientLabel}</span>
       </div>
       {clientCompany && <div className="text-xs text-warm-400 ml-4.5 truncate">{clientCompany}</div>}
+      {opp.assigned && (
+        <div className="mt-1.5 flex items-center gap-1">
+          <span className="text-2xs bg-brand-50 text-brand-600 font-600 px-1.5 py-0.5 rounded-full">
+            {opp.assigned.full_name}
+          </span>
+        </div>
+      )}
       {opp.value_estimate && (
         <div className="mt-2 pt-2 border-t border-warm-100 text-xs font-700 text-warm-700">
           € {Number(opp.value_estimate).toLocaleString('it-IT')}
@@ -230,13 +314,15 @@ function OppCard({ opp, stage, onClick }) {
 // ── Vista principale ──────────────────────────────────────────────────────────
 export default function ProductPipeline({ preProject, onModalClose }) {
   const { profile } = useApp()
+  const isAgent = profile?.role === 'agent'
+  const canCreate = ['admin', 'manager'].includes(profile?.role)
+
   const [pipeline, setPipeline] = useState([])
   const [loading, setLoading] = useState(true)
-  const [modal, setModal] = useState(null) // null | 'new' | opportunity object
+  const [modal, setModal] = useState(null)
   const [filterProject, setFilterProject] = useState('')
   const [projects, setProjects] = useState([])
 
-  // Se arriva un preProject (da bottone Proponi in Projects), apri subito il modal
   useEffect(() => {
     if (preProject) setModal('new')
   }, [preProject])
@@ -248,13 +334,13 @@ export default function ProductPipeline({ preProject, onModalClose }) {
 
   useEffect(() => {
     load()
-    api('/api/projects').then(d => setProjects((d.projects || []).filter(p => p.stage === 'pronto')))
+    if (!isAgent) {
+      api('/api/projects').then(d => setProjects((d.projects || []).filter(p => p.stage === 'pronto')))
+    }
   }, [])
 
   const filtered = pipeline.filter(o => !filterProject || o.project?.id === filterProject)
-
   const stageCounts = Object.fromEntries(STAGES.map(s => [s.key, filtered.filter(o => o.stage === s.key).length]))
-
   const totalValue = filtered
     .filter(o => o.stage === 'ordine' && o.value_estimate)
     .reduce((acc, o) => acc + Number(o.value_estimate), 0)
@@ -273,13 +359,19 @@ export default function ProductPipeline({ preProject, onModalClose }) {
     if (onModalClose) onModalClose()
   }
 
+  function openCard(opp) {
+    setModal(isAgent ? { type: 'agent', opp } : opp)
+  }
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
 
       {/* Header */}
       <div className="px-6 py-4 bg-white border-b border-warm-200 flex items-center gap-3 flex-shrink-0">
         <div className="flex-1 min-w-0">
-          <h1 className="text-base font-bold tracking-tight text-warm-900">Pipeline Vendite</h1>
+          <h1 className="text-base font-bold tracking-tight text-warm-900">
+            {isAgent ? 'Le mie opportunità' : 'Pipeline Vendite'}
+          </h1>
           <div className="flex items-center gap-3 mt-1 flex-wrap">
             {STAGES.map(s => (
               <span key={s.key} className="flex items-center gap-1 text-xs">
@@ -296,7 +388,7 @@ export default function ProductPipeline({ preProject, onModalClose }) {
           </div>
         </div>
 
-        {projects.length > 0 && (
+        {!isAgent && projects.length > 0 && (
           <select value={filterProject} onChange={e => setFilterProject(e.target.value)}
             className="text-xs border border-warm-200 rounded-lg px-2 py-1.5 bg-white text-warm-700 focus:outline-none focus:border-brand-400 hidden md:block">
             <option value="">Tutti i prodotti</option>
@@ -304,7 +396,7 @@ export default function ProductPipeline({ preProject, onModalClose }) {
           </select>
         )}
 
-        {['admin', 'manager'].includes(profile?.role) && (
+        {canCreate && (
           <button onClick={() => setModal('new')}
             className="bg-brand-500 hover:bg-brand-600 text-white text-sm font-600 rounded-lg px-4 py-2 transition-colors flex items-center gap-1.5 flex-shrink-0">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path d="M8 3v10M3 8h10"/></svg>
@@ -331,7 +423,7 @@ export default function ProductPipeline({ preProject, onModalClose }) {
                 {!loading && (
                   <div className="space-y-2">
                     {cards.map(o => (
-                      <OppCard key={o.id} opp={o} stage={stage} onClick={() => setModal(o)}/>
+                      <OppCard key={o.id} opp={o} stage={stage} onClick={() => openCard(o)}/>
                     ))}
                     {cards.length === 0 && (
                       <div className={`text-xs ${stage.color} opacity-40 text-center py-10 border-2 border-dashed ${stage.border} rounded-xl`}>
@@ -346,13 +438,32 @@ export default function ProductPipeline({ preProject, onModalClose }) {
         })}
       </div>
 
-      {modal && (
+      {/* Modal admin/manager */}
+      {modal && modal !== 'new' && !modal.type && canCreate && (
         <OpportunityModal
-          opp={modal === 'new' ? null : modal}
-          preProject={modal === 'new' ? preProject : null}
+          opp={modal}
+          preProject={null}
           onClose={closeModal}
           onSaved={handleSaved}
           onDeleted={handleDeleted}
+        />
+      )}
+      {modal === 'new' && canCreate && (
+        <OpportunityModal
+          opp={null}
+          preProject={preProject}
+          onClose={closeModal}
+          onSaved={handleSaved}
+          onDeleted={handleDeleted}
+        />
+      )}
+
+      {/* Modal agente */}
+      {modal?.type === 'agent' && (
+        <AgentUpdateModal
+          opp={modal.opp}
+          onClose={closeModal}
+          onSaved={handleSaved}
         />
       )}
     </div>
