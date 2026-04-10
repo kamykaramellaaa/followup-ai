@@ -4,7 +4,7 @@
  * Uso:
  *   node sync-progetti.js
  *
- * Variabili d'ambiente richieste (le stesse del backend):
+ * Variabili d'ambiente richieste:
  *   SUPABASE_URL, SUPABASE_SERVICE_KEY, ANTHROPIC_API_KEY
  *
  * Il file Excel viene cercato in:
@@ -40,6 +40,44 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !ANTHROPIC_API_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 const claude = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
+// ── Dedup automatico (prima di tutto) ────────────────────────────────────────
+async function removeDuplicates() {
+  const { data, error } = await supabase
+    .from('projects')
+    .select('id, name, created_at')
+    .order('created_at', { ascending: true });
+
+  if (error || !data) return;
+
+  const seen = new Map(); // name.lower → id del primo (più vecchio)
+  const toDelete = [];
+
+  for (const p of data) {
+    const key = p.name.trim().toLowerCase();
+    if (seen.has(key)) {
+      toDelete.push(p.id); // tieni il più vecchio, elimina i successivi
+    } else {
+      seen.set(key, p.id);
+    }
+  }
+
+  if (toDelete.length === 0) {
+    console.log('✅  Nessun duplicato trovato.');
+    return;
+  }
+
+  const { error: delError } = await supabase
+    .from('projects')
+    .delete()
+    .in('id', toDelete);
+
+  if (delError) {
+    console.log(`❌  Errore rimozione duplicati: ${delError.message}`);
+  } else {
+    console.log(`🧹  Rimossi ${toDelete.length} duplicati.`);
+  }
+}
+
 // ── Tool: leggi Excel ────────────────────────────────────────────────────────
 function toolReadExcel() {
   for (const filePath of EXCEL_CANDIDATES) {
@@ -58,9 +96,6 @@ function toolReadExcel() {
           priority: mapPriority(r['Priorità']),
           client: r['Cliente'] || null,
           notes: r['Note'] || null,
-          updated_at_excel: r['Stato Aggiornamento']
-            ? new Date(r['Stato Aggiornamento']).toISOString().split('T')[0]
-            : null,
         }));
       console.log(`📂  Excel letto: ${filePath} (${projects.length} progetti)`);
       return { projects, source: filePath };
@@ -80,13 +115,11 @@ async function toolGetProjects() {
 
 // ── Tool: upsert progetto ────────────────────────────────────────────────────
 async function toolUpsertProject({ id, name, market, stage, priority, client, notes, weight_format }) {
-  // Trova l'admin per owner_id
   const { data: admin } = await supabase
     .from('profiles').select('id').eq('role', 'admin').single();
   const ownerId = admin?.id;
 
   if (id) {
-    // Aggiorna esistente
     const { error } = await supabase
       .from('projects')
       .update({ name, market, stage, priority, client, notes, weight_format })
@@ -94,7 +127,6 @@ async function toolUpsertProject({ id, name, market, stage, priority, client, no
     if (error) return { success: false, error: error.message };
     return { success: true, action: 'updated', id };
   } else {
-    // Inserisci nuovo
     const { data, error } = await supabase
       .from('projects')
       .insert({ name, market, stage, priority, client, notes, weight_format,
@@ -111,8 +143,7 @@ function mapStage(s) {
   const v = String(s).toLowerCase().trim();
   if (v.includes('pronto') || v.includes('ready')) return 'pronto';
   if (v.includes('sviluppo') || v.includes('development')) return 'sviluppo';
-  if (v.includes('standby') || v.includes('stand by') || v.includes('sospeso')) return 'standby';
-  if (v.includes('chiuso') || v.includes('closed') || v.includes('cancellato')) return 'chiuso';
+  if (v.includes('test')) return 'test';
   return 'idea';
 }
 
@@ -145,7 +176,7 @@ const TOOLS = [
         id: { type: 'string', description: 'ID del progetto esistente (omettere per nuovo)' },
         name: { type: 'string', description: 'Nome del progetto' },
         market: { type: 'string', description: 'Mercato target' },
-        stage: { type: 'string', enum: ['idea', 'sviluppo', 'pronto', 'standby', 'chiuso'] },
+        stage: { type: 'string', enum: ['idea', 'sviluppo', 'test', 'pronto'] },
         priority: { type: 'string', enum: ['alta', 'media', 'bassa'] },
         client: { type: 'string', description: 'Cliente' },
         notes: { type: 'string', description: 'Note' },
@@ -170,6 +201,9 @@ async function executeTool(name, input) {
 async function runAgent() {
   console.log('🤖  Avvio agente sincronizzazione progetti...\n');
 
+  // Prima rimuovi eventuali duplicati
+  await removeDuplicates();
+
   const messages = [{
     role: 'user',
     content: `Sei un assistente CRM. Il tuo compito è sincronizzare i progetti dal file Excel con il database.
@@ -186,23 +220,20 @@ Segui questi passi:
 
   while (true) {
     const response = await claude.messages.create({
-      model: 'claude-sonnet-4-6', // sonnet è sufficiente per questo compito
+      model: 'claude-sonnet-4-6',
       max_tokens: 4096,
       tools: TOOLS,
       messages,
     });
 
-    // Stampa testo dell'agente
     for (const block of response.content) {
       if (block.type === 'text' && block.text) {
         console.log(block.text);
       }
     }
 
-    // Fine?
     if (response.stop_reason === 'end_turn') break;
 
-    // Esegui tool calls
     const toolCalls = response.content.filter(b => b.type === 'tool_use');
     if (!toolCalls.length) break;
 
