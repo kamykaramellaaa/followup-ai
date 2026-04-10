@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { api } from '../../lib/api'
 import { useApp } from '../../App'
 import {
@@ -461,6 +461,9 @@ export default function Projects() {
   const [filterMarket, setFilterMarket] = useState('')
   const [filterPri, setFilterPri] = useState('')
   const [view, setView] = useState('kanban') // 'kanban' | 'table'
+  const [syncing, setSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState(null)
+  const fileInputRef = useRef(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -487,6 +490,24 @@ export default function Projects() {
 
   function handleDeleted(id) {
     setProjects(prev => prev.filter(p => p.id !== id))
+  }
+
+  async function handleSync(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setSyncing(true)
+    setSyncResult(null)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const result = await api('/api/sync/progetti', { method: 'POST', body: form })
+      setSyncResult({ ok: true, ...result })
+      load() // ricarica progetti
+    } catch (err) {
+      setSyncResult({ ok: false, error: err.message })
+    }
+    setSyncing(false)
   }
 
   function handleDragEnd(stageKey, { active, over }) {
@@ -556,6 +577,19 @@ export default function Projects() {
           </button>
         </div>
 
+        {profile?.role === 'admin' && (
+          <>
+            <input ref={fileInputRef} type="file" accept=".xlsx" className="hidden" onChange={handleSync}/>
+            <button onClick={() => fileInputRef.current?.click()} disabled={syncing}
+              className="text-sm font-600 rounded-lg px-3 py-2 border border-warm-200 hover:border-brand-400 text-warm-600 hover:text-brand-600 transition-colors flex items-center gap-1.5 flex-shrink-0 disabled:opacity-40">
+              {syncing
+                ? <><span className="w-3.5 h-3.5 border-2 border-brand-400 border-t-transparent rounded-full animate-spin"/><span>Sync...</span></>
+                : <><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5"><path d="M2 8a6 6 0 1 0 1-3.3"/><path d="M2 2v4h4"/></svg><span>Sync Excel</span></>
+              }
+            </button>
+          </>
+        )}
+
         {['admin', 'manager'].includes(profile?.role) && (
           <button onClick={() => setModal('new')}
             className="bg-brand-500 hover:bg-brand-600 text-white text-sm font-600 rounded-lg px-4 py-2 transition-colors flex items-center gap-1.5 flex-shrink-0">
@@ -564,6 +598,21 @@ export default function Projects() {
           </button>
         )}
       </div>
+
+      {/* Toast risultato sync */}
+      {syncResult && (
+        <div className={`mx-4 mt-2 px-4 py-2.5 rounded-xl text-sm flex items-center justify-between gap-3 ${syncResult.ok ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+          <span>
+            {syncResult.ok
+              ? `✓ Sync completato — ${syncResult.inserted} inseriti, ${syncResult.updated} aggiornati, ${syncResult.skipped} invariati${syncResult.deleted_duplicates ? `, ${syncResult.deleted_duplicates} duplicati rimossi` : ''}`
+              : `✗ Errore: ${syncResult.error}`
+            }
+          </span>
+          <button onClick={() => setSyncResult(null)} className="opacity-50 hover:opacity-100 flex-shrink-0">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3.5 h-3.5"><path d="M3 3l10 10M13 3L3 13"/></svg>
+          </button>
+        </div>
+      )}
 
       {/* Filtri mobile */}
       <div className="md:hidden flex gap-2 px-4 py-2 bg-white border-b border-warm-100">
