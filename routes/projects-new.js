@@ -19,7 +19,7 @@ router.get('/', requireAuth, async (req, res) => {
         id, name, description, market, stage, priority,
         supplier, weight_format, cost_per_unit, photo_url,
         country_code, country, client,
-        owner:profiles(full_name, id),
+        owner:profiles!owner_id(full_name, id),
         created_at, updated_at
       `);
 
